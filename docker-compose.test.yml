@@ -1,0 +1,64 @@
+name: waveset-test
+
+services:
+    mysql:
+        image: mysql:8.4
+        environment:
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?imposta MYSQL_ROOT_PASSWORD in .env.test}
+            MYSQL_DATABASE: waveset_test
+            MYSQL_USER: ${DB_USER:?imposta DB_USER in .env.test}
+            MYSQL_PASSWORD: ${DB_PASSWORD:?imposta DB_PASSWORD in .env.test}
+        ports:
+            - "127.0.0.1:${MYSQL_HOST_PORT:-3308}:3306"
+        volumes:
+            - mysql_data:/var/lib/mysql
+            - ./backend/db/init:/docker-entrypoint-initdb.d:ro
+        # Ping via TCP: vedi docker-compose.yml.
+        healthcheck:
+            test: ["CMD-SHELL", 'mysqladmin ping --protocol=tcp -h 127.0.0.1 -uroot -p"$$MYSQL_ROOT_PASSWORD" --silent']
+            interval: 5s
+            timeout: 5s
+            retries: 30
+            start_period: 30s
+        restart: "no"
+
+    seed-test:
+        image: mysql:8.4
+        entrypoint: ["/bin/sh", "-ec"]
+        command:
+            - |
+                for f in /seed/*.sql; do
+                    echo "seed test: $$f"
+                    mysql -h mysql -u"$$DB_USER" waveset_test < "$$f"
+                done
+        environment:
+            DB_USER: ${DB_USER}
+            MYSQL_PWD: ${DB_PASSWORD}
+        volumes:
+            - ./backend/db/test:/seed:ro
+        depends_on:
+            mysql:
+                condition: service_healthy
+        restart: "no"
+
+    backend:
+        build: ./backend
+        ports:
+            - "127.0.0.1:${BACKEND_HOST_PORT:-3001}:3000"
+        environment:
+            PORT: "3000"
+            DB_HOST: mysql
+            DB_PORT: "3306"
+            DB_NAME: waveset_test
+            DB_USER: ${DB_USER}
+            DB_PASSWORD: ${DB_PASSWORD}
+        depends_on:
+            mysql:
+                condition: service_healthy
+            seed-test:
+                condition: service_completed_successfully
+        restart: "no"
+
+volumes:
+    mysql_data:
+        name: waveset_test_mysql_data

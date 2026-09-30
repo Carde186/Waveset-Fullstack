@@ -1,0 +1,18 @@
+-- Nuova colonna nullable: nome (o nomi) di un artista accreditato su un
+-- brano ma NON riportato nel titolo ufficiale (es. "In the Name of Love"
+-- di Martin Garrix, feat. Bebe Rexha solo nel campo artista di Apple/
+-- Spotify, mai nel titolo — vedi CLAUDE.md, "Catalogo reale"). Non
+-- introduce una relazione N:N: brano.artista_id resta l'unico artista
+-- titolare della riga (N:1, invariato) — questo è solo testo libero di
+-- presentazione, mai un secondo artista con una propria pagina/follow/
+-- discografia nel catalogo.
+--
+-- Popolata SOLO quando il nome del collaboratore non compare già nel
+-- titolo: quando il titolo ufficiale include già "(feat. ...)" (es.
+-- "Titanium (feat. Sia)"), questa colonna resta NULL — mostrarla di
+-- nuovo duplicherebbe un'informazione già visibile nel titolo.
+--
+-- Su un DB nuovo/clonato arriva da sola con gli init script. Su un DB già
+-- avviato va eseguita a mano una volta (stesso principio di
+-- 11_credito_immagine_schema.sql per artista.immagine_autore e affini).
+ALTER TABLE brano ADD COLUMN collaboratori VARCHAR(200) NULL;
