@@ -3,13 +3,21 @@ const express = require('express');
 const autenticazioneFacoltativa = require('../autenticazione/autenticazioneFacoltativa');
 const pool = require('../config/database');
 const {
-    COLONNE_EVENTO,
+    COLONNE_EVENTO: COLONNE_EVENTO_CONDIVISE,
     CON_ARTISTA_SEGUITO,
     SOLO_PUBBLICATI,
     formattaEventi,
 } = require('../utilita/eventi');
 
 const router = express.Router();
+
+// DATE è il giorno locale del locale, non un istante UTC. mysql2 senza
+// dateStrings lo converte in Date: stabilizziamo solo le API eventi, senza
+// cambiare pool, Novità o catalogo che condividono COLONNE_EVENTO.
+const COLONNE_EVENTO = COLONNE_EVENTO_CONDIVISE.replace(
+    'e.data_evento',
+    "DATE_FORMAT(e.data_evento, '%Y-%m-%d') AS data_evento",
+);
 
 // Eventi futuri (da oggi in poi), per data e ora. filtro=seguiti: solo
 // quelli con almeno un artista seguito in lineup, e richiede la sessione.
