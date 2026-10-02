@@ -1,0 +1,38 @@
+.bottone {
+    display: inline-block;
+    padding: 13px 19px;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    border: 0;
+    text-transform: uppercase;
+    text-decoration: none;
+    text-align: center;
+}
+
+.primario {
+    background: var(--lime);
+    color: var(--su-lime);
+}
+
+.primario:hover:not(:disabled) {
+    background: var(--menta);
+}
+
+.contorno {
+    border: 1px solid var(--contorno-bordo);
+    background: var(--contorno-sfondo);
+    color: var(--bianco);
+    font-weight: 850;
+    padding: 12px 17px;
+}
+
+.contorno:hover:not(:disabled) {
+    border-color: var(--lime);
+}
+
+.bottone:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}

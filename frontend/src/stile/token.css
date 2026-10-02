@@ -1,0 +1,45 @@
+/*
+ * Token visivi dell'identità «Club» di Waveset.
+ *
+ * Ogni valore viene da ~/Downloads/waveset-club-anteprima-schermate.html (l'anteprima
+ * Club approvata). Nessun colore, gradiente o carattere è stato aggiunto: dove
+ * l'anteprima non ha un riferimento (per esempio un colore di errore) NON si
+ * inventa nulla, si usa la palette esistente (vedi frontend/README.md).
+ */
+:root {
+    /* palette base dell'anteprima */
+    --sfondo: #090d0c;
+    --pannello: #14201a;
+    --pannello-2: #1b2e21;
+    --linea: #354636;
+    --lime: #d8ff58;
+    --menta: #80e9a7;
+    --bianco: #f6f8f2;
+    --tenue: #afbeae;
+
+    /* campi, chip, note, testo su lime */
+    --campo-sfondo: #18231a;
+    --campo-bordo: #537243;
+    --campo-segnaposto: #a3b1a3;
+    --su-lime: #132016;
+    --contorno-sfondo: #12201a;
+    --contorno-bordo: #a6c999;
+    --nota-sfondo: #1a281d;
+    --nota-testo: #b9c8b5;
+    --navigazione: #adc2ad;
+    --piede: #879b88;
+    --barra-sfondo: #090d0cf2;
+
+    /* superfici con gradiente (vetrina, carte, arte) */
+    --vetrina: linear-gradient(108deg, #213829, #11645a 80%);
+    --vetrina-bordo: #456d51;
+    --vetrina-testo: #d1e2ce;
+    --arte: radial-gradient(circle at 52% 42%, #efff97, #80ad4a 19%, #154b37 51%, #092b24 76%);
+    --anello: #edff9c70;
+    --carta: linear-gradient(130deg, #203526, #497a44 64%, #aadf61);
+    --carta-bordo: #85a859;
+    --carta-testo: #e3f1da;
+
+    /* tipografia */
+    --carattere: Arial, Helvetica, sans-serif;
+}

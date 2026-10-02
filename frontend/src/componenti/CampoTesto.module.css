@@ -1,0 +1,58 @@
+.campo {
+    margin-top: 18px;
+}
+
+.etichetta {
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.19em;
+    color: var(--tenue);
+    font-size: 11px;
+    font-weight: 900;
+    margin-bottom: 8px;
+}
+
+/* La scatola del campo è quella della ricerca dell'anteprima Club. */
+.scatola {
+    background: var(--campo-sfondo);
+    border: 1px solid var(--campo-bordo);
+    padding: 0 21px;
+}
+
+.scatola:focus-within {
+    border-color: var(--lime);
+}
+
+.invalido .scatola {
+    border-color: var(--lime);
+    box-shadow: 0 0 0 1px var(--lime);
+}
+
+.scatola input {
+    background: transparent;
+    color: #fff;
+    border: 0;
+    outline: 0;
+    width: 100%;
+    font-size: 16px;
+    padding: 17px 0;
+}
+
+.scatola input::placeholder {
+    color: var(--campo-segnaposto);
+}
+
+.suggerimento {
+    color: var(--tenue);
+    font-size: 12px;
+    margin: 6px 0 0;
+}
+
+.errore {
+    margin: 8px 0 0;
+    font-size: 13px;
+    font-weight: 700;
+    border-left: 3px solid var(--lime);
+    padding: 6px 10px;
+    background: var(--nota-sfondo);
+}

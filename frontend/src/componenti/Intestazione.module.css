@@ -1,0 +1,87 @@
+.barra {
+    height: 76px;
+    display: flex;
+    align-items: center;
+    gap: 36px;
+    padding: 0 5vw;
+    border-bottom: 1px solid var(--linea);
+    position: sticky;
+    top: 0;
+    background: var(--barra-sfondo);
+    backdrop-filter: blur(18px);
+    z-index: 10;
+}
+
+.marchio {
+    font-size: 25px;
+    font-weight: 950;
+    letter-spacing: -0.075em;
+    white-space: nowrap;
+    text-decoration: none;
+    color: var(--bianco);
+}
+
+.marchio span {
+    color: var(--lime);
+}
+
+.navigazione {
+    display: flex;
+    gap: 5px;
+    overflow: auto;
+    scrollbar-width: none;
+}
+
+.voce {
+    color: var(--navigazione);
+    padding: 12px 15px;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 750;
+    text-decoration: none;
+}
+
+.attiva {
+    color: var(--su-lime);
+    background: var(--lime);
+}
+
+.account {
+    margin-left: auto;
+    border: 1px solid var(--lime);
+    background: transparent;
+    color: var(--lime);
+    padding: 11px 17px;
+    font-size: 12px;
+    font-weight: 850;
+    white-space: nowrap;
+    text-decoration: none;
+    text-transform: uppercase;
+    max-width: 40vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 970px) {
+    .barra {
+        gap: 15px;
+    }
+}
+
+@media (max-width: 650px) {
+    .barra {
+        height: auto;
+        min-height: 75px;
+        flex-wrap: wrap;
+        padding: 14px 5vw;
+    }
+
+    .navigazione {
+        order: 3;
+        width: 100%;
+    }
+
+    .account {
+        padding: 8px 10px;
+    }
+}

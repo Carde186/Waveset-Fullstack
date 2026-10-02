@@ -1,0 +1,67 @@
+.dati {
+    display: flex;
+    gap: 9px;
+    flex-wrap: wrap;
+    margin: 20px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dati li {
+    border: 1px solid var(--campo-bordo);
+    padding: 9px 12px;
+    color: #d4e4cd;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+/* Le carte con il lime dell'anteprima Club («le tue playlist»). */
+.carte {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px;
+}
+
+.carta {
+    background: var(--carta);
+    min-height: 185px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 18px;
+    border: 1px solid var(--carta-bordo);
+}
+
+.carta small {
+    color: var(--carta-testo);
+    text-transform: uppercase;
+    letter-spacing: 0.19em;
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.carta strong {
+    font-size: 21px;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+}
+
+.carta p {
+    margin: 8px 0 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--carta-testo);
+}
+
+.conferma {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 11px;
+}
+
+@media (max-width: 970px) {
+    .carte {
+        grid-template-columns: 1fr;
+    }
+}

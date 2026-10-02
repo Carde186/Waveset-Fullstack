@@ -1,0 +1,148 @@
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    color-scheme: dark;
+}
+
+body {
+    margin: 0;
+    background: var(--sfondo);
+    color: var(--bianco);
+    font-family: var(--carattere);
+    min-height: 100vh;
+}
+
+button,
+input {
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+a {
+    color: inherit;
+}
+
+/* Il fuoco resta sempre visibile, nella palette Club. */
+:focus-visible {
+    outline: 2px solid var(--lime);
+    outline-offset: 3px;
+}
+
+/* Testo per i lettori di schermo e link «vai al contenuto». */
+.solo-lettori {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.salta-al-contenuto {
+    position: absolute;
+    left: 5vw;
+    top: -100px;
+    z-index: 20;
+    background: var(--lime);
+    color: var(--su-lime);
+    padding: 12px 17px;
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+    text-decoration: none;
+}
+
+.salta-al-contenuto:focus {
+    top: 12px;
+}
+
+/* Tipografia dell'anteprima: occhiello, titolo grande, introduzione. */
+.occhiello {
+    text-transform: uppercase;
+    letter-spacing: 0.19em;
+    color: var(--lime);
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.titolo {
+    font-weight: 950;
+    font-size: clamp(42px, 6vw, 85px);
+    letter-spacing: -0.075em;
+    line-height: 0.95;
+    margin: 13px 0 16px;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.titolo-medio {
+    font-weight: 950;
+    font-size: clamp(30px, 4vw, 58px);
+    letter-spacing: -0.07em;
+    line-height: 1;
+    margin: 15px 0;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.introduzione {
+    color: var(--tenue);
+    font-size: 16px;
+    line-height: 1.6;
+    max-width: 600px;
+    margin: 0;
+}
+
+.sezione {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin: 45px 0 17px;
+    gap: 15px;
+}
+
+.sezione h2 {
+    margin: 0;
+    font-size: 26px;
+    letter-spacing: -0.045em;
+    text-transform: uppercase;
+}
+
+.pagina {
+    max-width: 1450px;
+    margin: auto;
+    padding: 42px 5vw 85px;
+}
+
+.piede {
+    margin-top: 55px;
+    padding-top: 20px;
+    border-top: 1px solid var(--linea);
+    font-size: 12px;
+    color: var(--piede);
+}
+
+@media (max-width: 650px) {
+    .pagina {
+        padding-top: 28px;
+    }
+}
+
+/* Chi preferisce meno movimento non vede animazioni. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

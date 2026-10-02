@@ -1,0 +1,22 @@
+.modulo {
+    max-width: 520px;
+}
+
+.azioni {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 20px;
+    margin-top: 26px;
+}
+
+.alternativa {
+    font-size: 13px;
+    color: var(--vetrina-testo);
+    margin: 0;
+}
+
+.alternativa a {
+    color: var(--lime);
+    font-weight: 850;
+}

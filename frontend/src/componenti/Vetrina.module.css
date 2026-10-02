@@ -1,0 +1,51 @@
+/* Blocco «in evidenza» dell'anteprima Club: testo su verde profondo e, accanto,
+   l'arte astratta con il lime ben presente. */
+.vetrina {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    min-height: 305px;
+    background: var(--vetrina);
+    border: 1px solid var(--vetrina-bordo);
+    overflow: hidden;
+}
+
+.copia {
+    padding: 38px;
+    min-width: 0;
+}
+
+.copia p {
+    color: var(--vetrina-testo);
+    line-height: 1.55;
+}
+
+.arte {
+    min-height: 260px;
+    background: var(--arte);
+    position: relative;
+    overflow: hidden;
+}
+
+.arte::after {
+    content: '◌';
+    position: absolute;
+    right: 15%;
+    top: -45px;
+    font-size: 350px;
+    color: var(--anello);
+    line-height: 1;
+}
+
+@media (max-width: 650px) {
+    .vetrina {
+        grid-template-columns: 1fr;
+    }
+
+    .arte {
+        min-height: 170px;
+    }
+
+    .copia {
+        padding: 24px;
+    }
+}
