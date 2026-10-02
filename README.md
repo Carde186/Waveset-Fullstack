@@ -14,12 +14,13 @@ Piattaforma didattica di scoperta musicale elettronica: gli ospiti esplorano mus
 5. [Ambiente di test e suite](#ambiente-di-test-e-suite)
 6. [Servizi, porte e volumi](#servizi-porte-e-volumi)
 7. [Variabili d'ambiente e chiavi](#variabili-dambiente-e-chiavi)
-8. [Dati: locali persistenti, demo e test](#dati-locali-persistenti-demo-e-test)
-9. [Account e sicurezza](#account-e-sicurezza)
-10. [API del backend](#api-del-backend)
-11. [Struttura del repository](#struttura-del-repository)
-12. [Limiti noti](#limiti-noti)
-13. [Funzionalità future e riferimenti](#funzionalità-future-e-riferimenti)
+8. [Configurare Google Maps in locale](#configurare-google-maps-in-locale)
+9. [Dati: locali persistenti, demo e test](#dati-locali-persistenti-demo-e-test)
+10. [Account e sicurezza](#account-e-sicurezza)
+11. [API del backend](#api-del-backend)
+12. [Struttura del repository](#struttura-del-repository)
+13. [Limiti noti](#limiti-noti)
+14. [Funzionalità future e riferimenti](#funzionalità-future-e-riferimenti)
 
 ---
 
@@ -252,6 +253,46 @@ Sul rate limit: se le variabili sono assenti o vuote valgono i valori normali; u
 | URL e nome del modello **Ollama** | Revisione AI locale. Ollama non usa chiavi cloud; non sono previsti fallback cloud. |
 
 Le API pubbliche di iTunes Search non richiedono chiavi.
+
+## Configurare Google Maps in locale
+
+1. Aprire [Google Cloud Console](https://console.cloud.google.com/).
+2. Selezionare o creare il progetto Google Cloud `wavesetFullstack`.
+3. Andare in **API e servizi → Libreria**.
+4. Cercare e abilitare **Maps JavaScript API**. Se non compare, usare la [pagina diretta della Maps JavaScript API](https://console.cloud.google.com/apis/library/maps-backend.googleapis.com), verificando che il progetto corretto sia selezionato.
+5. Andare in **API e servizi → Credenziali**.
+6. Selezionare **Crea credenziali → Chiave API**.
+7. Dare alla chiave un nome riconoscibile, per esempio `waveset-maps-test`.
+8. Limitare l'applicazione a **Siti web** / **Referenti HTTP**.
+9. Aggiungere questi referer per il test locale: `http://localhost:5174` e `http://localhost:5173`. Se la console lo richiede, usare `http://localhost:5174/*` e `http://localhost:5173/*`.
+10. Limitare la chiave alla sola **Maps JavaScript API**.
+11. Salvare senza riportare nella documentazione il valore della chiave.
+12. Creare il Map ID da **Google Maps Platform → Gestione mappe**, con nome `waveset-test-web`, piattaforma **JavaScript** e tipo **Raster** oppure **Vector**.
+13. Creare `frontend/.env.local`, che non deve essere committato, con questi segnaposto da sostituire soltanto nel file locale:
+
+    ```dotenv
+    VITE_GOOGLE_MAPS_API_KEY=...
+    VITE_GOOGLE_MAPS_MAP_ID=...
+    ```
+
+14. Dalla radice del repository, verificare che il file sia ignorato:
+
+    ```bash
+    git check-ignore -v frontend/.env.local
+    ```
+
+15. Riavviare Vite dopo aver creato o modificato `.env.local`.
+
+Avvertenze:
+
+- Non inserire chiavi o Map ID reali nei file versionati.
+- Non usare la chiave server del backend nel browser.
+- La chiave browser è visibile nel frontend e va protetta con referer HTTP e restrizioni API.
+- Non usare come Map ID il numero progetto, l'ID progetto, il nome della chiave o la chiave API.
+- La fatturazione Google Cloud e la Maps JavaScript API devono essere abilitate.
+- Il test reale usa **http://localhost:5174**.
+
+`frontend/.env.local` configura lo sviluppo Vite su `http://localhost:5173`. Il frontend del Compose di test su `http://localhost:5174` legge invece queste variabili dal `.env.test` locale durante la build: modificare `.env.local` e riavviare Vite non aggiorna quella build. Per il Compose occorre ricostruire l'immagine frontend dopo aver impostato le variabili in `.env.test`, mantenendo entrambi i file fuori dai commit.
 
 ## Dati: locali persistenti, demo e test
 
