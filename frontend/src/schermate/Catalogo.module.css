@@ -1,0 +1,91 @@
+.strumenti {
+    margin: 35px 0;
+    padding: 26px;
+    background: var(--pannello);
+    border: 1px solid var(--linea);
+}
+
+.strumenti h2 {
+    margin: 0 0 20px;
+    text-transform: uppercase;
+    letter-spacing: -0.04em;
+}
+
+.generi,
+.azioni {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.griglia {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.percorso {
+    margin-bottom: 22px;
+    color: var(--lime);
+}
+
+.testo {
+    line-height: 1.65;
+    white-space: pre-line;
+}
+
+.metadati {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 23px 0;
+}
+
+.metadati span {
+    background: var(--lime);
+    color: var(--su-lime);
+    padding: 9px 13px;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.immagineDettaglio {
+    max-width: 320px;
+    margin-top: 24px;
+}
+
+.credito,
+.nota {
+    color: var(--tenue);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.eventi {
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 12px;
+}
+
+.eventi li {
+    padding: 20px;
+    border: 1px solid var(--linea);
+    background: var(--pannello-2);
+}
+
+@media (max-width: 970px) {
+    .griglia {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 650px) {
+    .griglia {
+        grid-template-columns: 1fr;
+    }
+    .strumenti {
+        padding: 20px;
+    }
+}

@@ -1,0 +1,46 @@
+.stato {
+    background: var(--pannello);
+    border: 1px solid var(--linea);
+    padding: 38px;
+    max-width: 720px;
+}
+
+.stato :is(h1, h2, h3) {
+    margin: 12px 0;
+    font-size: clamp(28px, 4vw, 44px);
+    letter-spacing: -0.06em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.stato p {
+    color: var(--tenue);
+    line-height: 1.6;
+    margin: 0 0 22px;
+}
+
+/* Caricamento: una barra lime che scorre, nella palette Club. */
+.barra {
+    height: 4px;
+    background: var(--linea);
+    overflow: hidden;
+    margin-top: 22px;
+}
+
+.barra::before {
+    content: '';
+    display: block;
+    height: 100%;
+    width: 30%;
+    background: var(--lime);
+    animation: scorri 1.2s ease-in-out infinite;
+}
+
+@keyframes scorri {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(340%);
+    }
+}

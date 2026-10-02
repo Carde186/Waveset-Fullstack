@@ -1,0 +1,103 @@
+.carta {
+    display: block;
+    min-width: 0;
+    background: var(--carta);
+    border: 1px solid var(--carta-bordo);
+    text-decoration: none;
+    overflow: hidden;
+}
+
+.arte {
+    position: relative;
+    aspect-ratio: 1.5;
+    overflow: hidden;
+    background: var(--arte);
+}
+
+.arte img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.anello {
+    position: absolute;
+    font-size: 240px;
+    line-height: 1;
+    color: var(--anello);
+    top: -35px;
+    right: 10%;
+}
+
+.didascalia {
+    position: absolute;
+    bottom: 13px;
+    left: 17px;
+    color: var(--bianco);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+}
+
+.copia,
+.cartaTesto {
+    padding: 23px;
+    overflow-wrap: anywhere;
+}
+
+.copia h3,
+.cartaTesto h3 {
+    margin: 13px 0;
+    font-size: 25px;
+    letter-spacing: -0.04em;
+}
+
+.copia small,
+.cartaTesto small {
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+}
+
+.cartaTesto {
+    background: var(--carta);
+    border: 1px solid var(--carta-bordo);
+}
+
+.cartaTesto p {
+    line-height: 1.5;
+}
+
+.brani {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--linea);
+    background: var(--pannello);
+}
+
+.brani li {
+    padding: 19px 23px;
+    border-bottom: 1px solid var(--linea);
+}
+
+.brani li:last-child {
+    border-bottom: 0;
+}
+
+.brani a {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.brani li > span {
+    display: block;
+    margin-top: 7px;
+    color: var(--tenue);
+    font-size: 12px;
+}
