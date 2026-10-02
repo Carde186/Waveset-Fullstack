@@ -54,6 +54,15 @@ services:
             DB_PASSWORD: ${DB_PASSWORD}
             TICKETMASTER_API_KEY: ${TICKETMASTER_API_KEY:-}
             GOOGLE_GEOCODING_API_KEY: ${GOOGLE_GEOCODING_API_KEY:-}
+            # Rate limit, valori NORMALI (finestre di 15 minuti): registrazione
+            # 30 richieste per IP; login 10 fallimenti per IP+email, 50
+            # fallimenti e 100 tentativi totali per IP. Si cambiano da .env.
+            RATE_LIMIT_REGISTRAZIONE_MAX: ${RATE_LIMIT_REGISTRAZIONE_MAX:-30}
+            RATE_LIMIT_REGISTRAZIONE_FINESTRA_SEC: ${RATE_LIMIT_REGISTRAZIONE_FINESTRA_SEC:-900}
+            RATE_LIMIT_LOGIN_COPPIA_MAX: ${RATE_LIMIT_LOGIN_COPPIA_MAX:-10}
+            RATE_LIMIT_LOGIN_IP_FALLIMENTI_MAX: ${RATE_LIMIT_LOGIN_IP_FALLIMENTI_MAX:-50}
+            RATE_LIMIT_LOGIN_IP_TOTALE_MAX: ${RATE_LIMIT_LOGIN_IP_TOTALE_MAX:-100}
+            RATE_LIMIT_LOGIN_FINESTRA_SEC: ${RATE_LIMIT_LOGIN_FINESTRA_SEC:-900}
         depends_on:
             mysql:
                 condition: service_healthy

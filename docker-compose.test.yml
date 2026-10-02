@@ -52,11 +52,45 @@ services:
             DB_NAME: waveset_test
             DB_USER: ${DB_USER}
             DB_PASSWORD: ${DB_PASSWORD}
+            # Rate limit: nei test molto più alto dei valori normali
+            # (registrazione 30 per IP; login 10 fallimenti per IP+email, 50
+            # fallimenti e 100 tentativi totali per IP, ogni 900 s), perché
+            # la suite registra e accede decine di volte dallo stesso IP. I
+            # limitatori veri sono provati a parte, con soglie basse
+            # (registrazioneLimite, loginLimite).
+            RATE_LIMIT_REGISTRAZIONE_MAX: ${RATE_LIMIT_REGISTRAZIONE_MAX:-1000}
+            RATE_LIMIT_REGISTRAZIONE_FINESTRA_SEC: ${RATE_LIMIT_REGISTRAZIONE_FINESTRA_SEC:-900}
+            RATE_LIMIT_LOGIN_COPPIA_MAX: ${RATE_LIMIT_LOGIN_COPPIA_MAX:-1000}
+            RATE_LIMIT_LOGIN_IP_FALLIMENTI_MAX: ${RATE_LIMIT_LOGIN_IP_FALLIMENTI_MAX:-1000}
+            RATE_LIMIT_LOGIN_IP_TOTALE_MAX: ${RATE_LIMIT_LOGIN_IP_TOTALE_MAX:-10000}
+            RATE_LIMIT_LOGIN_FINESTRA_SEC: ${RATE_LIMIT_LOGIN_FINESTRA_SEC:-900}
+            # Sessione browser: l'origine esatta è quella che il browser usa per
+            # aprire il frontend di test (stessa porta pubblicata più sotto).
+            # FRONTEND_ORIGINS_TEST serve solo a provare il caso "web non
+            # configurato": impostata VUOTA (non assente) disabilita la sessione web.
+            FRONTEND_ORIGINS: ${FRONTEND_ORIGINS_TEST-http://localhost:${FRONTEND_HOST_PORT:-5174}}
+            # Qui il frontend è servito in HTTP su localhost, quindi il cookie
+            # non può essere Secure. Vale SOLO per questo Compose di test:
+            # con HTTPS (e in produzione) COOKIE_SECURE va impostato a true.
+            COOKIE_SECURE: "false"
         depends_on:
             mysql:
                 condition: service_healthy
             seed-test:
                 condition: service_completed_successfully
+        restart: "no"
+
+    frontend:
+        build: ./frontend
+        ports:
+            - "127.0.0.1:${FRONTEND_HOST_PORT:-5174}:80"
+        healthcheck:
+            test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+            interval: 5s
+            timeout: 3s
+            retries: 10
+        depends_on:
+            - backend
         restart: "no"
 
 volumes:
