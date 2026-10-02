@@ -12,6 +12,7 @@ async function autenticazioneFacoltativa(req, res, next) {
     if (sessione) {
         req.utente = sessione.utente;
         req.sessioneId = sessione.id;
+        req.viaSessione = sessione.via;
     }
 
     next();

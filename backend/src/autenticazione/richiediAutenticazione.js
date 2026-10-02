@@ -15,6 +15,9 @@ async function richiediAutenticazione(req, res, next) {
 
     req.utente = sessione.utente;
     req.sessioneId = sessione.id;
+    // 'bearer' o 'cookie': come si è presentata la richiesta (non una proprietà
+    // salvata della sessione).
+    req.viaSessione = sessione.via;
     next();
 }
 
