@@ -2,7 +2,24 @@
 // test che usa il DB o l'HTTP). Nessuna chiamata di rete: la verifica del
 // server è la canarina in aiuto.js.
 const DB_TEST = 'waveset_test';
-const PORTE_APP_LOCALI = ['3096', '3097', '3098', '3099'];
+const PORTE_APP_LOCALI = [
+    '3084',
+    '3085',
+    '3086',
+    '3087',
+    '3088',
+    '3089',
+    '3090',
+    '3091',
+    '3092',
+    '3093',
+    '3094',
+    '3095',
+    '3096',
+    '3097',
+    '3098',
+    '3099',
+];
 
 function imposta(nome, valore) {
     const attuale = process.env[nome];

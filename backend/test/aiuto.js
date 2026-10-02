@@ -89,12 +89,14 @@ async function eseguiCanarina() {
         );
     } finally {
         if (id !== undefined) {
-            await db.query('DELETE FROM genere WHERE id = ? AND nome = ?', [
+            const [pulito] = await db.query('DELETE FROM genere WHERE id = ? AND nome = ?', [
                 id,
                 nome,
             ]);
+            if (pulito.affectedRows !== 1) throw new Error('CANARINA_PULIZIA_CONTEGGIO_INATTESO');
         }
     }
+    return Object.freeze({ verificata: true, pulita: true, righeEliminate: 1 });
 }
 
 async function chiama(percorso, { metodo = 'GET', sessione, corpo } = {}) {
