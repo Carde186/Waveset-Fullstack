@@ -8,6 +8,10 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+# Vite incorpora questi valori nella build statica. La chiave è pubblica nel
+# browser e deve essere limitata in Google Cloud ai referrer e alla Maps JS API.
+ARG VITE_GOOGLE_MAPS_API_KEY=""
+ARG VITE_GOOGLE_MAPS_MAP_ID=""
 # tsc --noEmit + vite build: una build con errori di tipo non produce l'immagine.
 RUN npm run build
 

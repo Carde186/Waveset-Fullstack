@@ -3,7 +3,7 @@
 Piattaforma didattica di scoperta musicale elettronica: gli ospiti esplorano musica ed eventi, gli utenti registrati seguono artisti e gestiscono playlist, un ADMIN gestisce catalogo, eventi e revisioni. Apple Music e Spotify sono destinazioni esterne, non un player integrato.
 
 > **Stato: lavori in corso. Il Fullstack NON è completo.**
-> Oggi esistono il **backend** (Node.js + Express), il **database** (MySQL) e i **due Compose** (normale e di test). Il **frontend web** ha accesso, registrazione e area autenticata ed è **verificato nel solo Compose di test**, su `http://localhost:5174`. Il Compose normale resta senza frontend. Esplora, Eventi e Playlist web sono ancora da implementare.
+> Oggi esistono backend, database e due Compose. Il frontend web ha accesso, registrazione, area, Esplora locale ed Eventi con dettaglio e Google Maps configurabile. La verifica con browser e Compose di test riguarda l'incremento precedente; Eventi e Maps sono stati verificati sull'host con API e SDK simulati. Il Compose normale resta senza frontend. Playlist web è ancora da implementare.
 
 ## Indice
 
@@ -40,7 +40,8 @@ La tabella include verifiche precedenti, riepilogate in `RIASSUNTO-CONVERSAZIONE
 | **Registrazione USER** (`POST /api/auth/registrazione`) con **rate limit** (30 richieste per IP ogni 15 minuti) | Implementata e **testata sul solo ambiente di test** (vedi [Registrazione](#registrazione-di-un-nuovo-utente)). Lo stack normale in esecuzione va ricostruito per averla. |
 | **Rate limit del login bearer** (`/auth/login`) | Implementato e **testato sul solo ambiente di test**: 10 fallimenti per IP+email, 50 fallimenti e 100 tentativi totali per IP ogni 15 minuti, 429 prima di bcrypt (vedi [Rate limit del login](#rate-limit-del-login-bearer)). Lo stack normale in esecuzione va ricostruito per averlo. |
 | **Sessione browser** | **Verificata con Chrome reale nello stack di test:** registrazione, login, `/auth/io` dopo refresh, logout e logout-tutti, revoca della seconda sessione, cookie HttpOnly, SameSite=Strict, Path=/api, Origin del browser e CSRF del frontend. Verificati anche 401, 429 e 503 reali e pagina/API 404. |
-| **Controlli dell'incremento** | Frontend: lint, typecheck, **96 test** e build passati sull'host; build Docker frontend passata. Backend: **385 test in 42 suite**, nei sette file pertinenti a configurazione web, Origin, cookie, CSRF e rate limit. La suite completa di **833 test**, riportata dalle verifiche precedenti, non è stata rieseguita in questo incremento. |
+| **Controlli del 1 ottobre** | Frontend: lint, typecheck, 96 test e build passati sull'host; build Docker frontend passata. Backend: 385 test in 42 suite, nei sette file pertinenti a configurazione web, Origin, cookie, CSRF e rate limit. La suite completa backend di 833 test non è stata rieseguita. |
+| **Eventi + Maps, 2 ottobre** | Frontend: 188 test in 14 file, lint, typecheck e build passati sull'host; SDK Maps e HTTP simulati. Backend: 2 test SQL isolati senza DB. Nessun Docker, DB o browser reale avviato. |
 
 Non è ancora verificato il **secondo avvio** dello stack normale con il volume già popolato (vedi [«Limiti noti»](#limiti-noti)).
 
@@ -50,7 +51,7 @@ Obiettivi del progetto (non presenti nel codice). Stato per voce:
 
 | Voce | Stato |
 |---|---|
-| Frontend web React responsive, identità grafica «Club» | **Parziale**: Accedi, Registrati e Area sono nel Compose di test. **Da implementare:** Esplora, Eventi, Playlist, mappa, revisione ADMIN e frontend nel Compose normale. |
+| Frontend web React responsive, identità grafica «Club» | **Parziale**: Accedi, Registrati, Area, Esplora locale ed Eventi con dettaglio sono implementati. Maps richiede configurazione Google e prova reale. Restano Playlist, revisione ADMIN e frontend nel Compose normale. |
 | Registrazione autonoma di nuovi USER | **Verificata nel Compose di test** con schermata web e login successivo separato. |
 | Sessione per il browser (cookie HttpOnly, CSRF, `Origin`, sessione web di 7 giorni) | **Verificata nel Compose di test.** Restano la configurazione web dello stack normale e la cancellazione del cookie revocato su 401 lato backend. |
 | Scelta e documentazione della sessione per il browser | **Scelta: cookie HttpOnly + CSRF in memoria.** Il contratto bearer preesistente resta disponibile. |
@@ -58,10 +59,10 @@ Obiettivi del progetto (non presenti nel codice). Stato per voce:
 | Promozione controllata di un risultato Apple nel catalogo locale | **Da implementare** |
 | Sezione «In tendenza» da feed Apple | **Da implementare** (opzionale) |
 | Scheduler automatico di sincronizzazione Ticketmaster (un solo esecutore, cache, backoff, protezione delle correzioni ADMIN) | **Da implementare**. Esiste un import Ticketmaster **manuale** ereditato dal backend originale (`backend/scripts/importaTicketmaster.js`, non verificato in questa sessione) |
-| Google Maps JavaScript API nella pagina Eventi, con i quattro layer Standard / Scura / Satellite / Ibrida | **Da implementare** |
+| Google Maps JavaScript API nella pagina Eventi, con i quattro layer Standard / Scura / Satellite / Ibrida | Implementata nel frontend; SDK simulato nei test, non verificata con chiave e Google reali. Senza configurazione resta disponibile la lista. |
 | Ollama locale per la revisione ADMIN dei casi ambigui Apple ↔ Ticketmaster | **Da implementare** |
 | Rimozione della dipendenza dalla Spotify Web API | **Da rivedere**: nessuna chiave Spotify è richiesta per avviare, ma esiste ancora un'anteprima ADMIN opzionale che la usa |
-| Test per le funzioni future (Apple live, scheduler, Ollama, Maps) | **Da scrivere** insieme alle funzioni. Registrazione, sessione browser e rate limit hanno già test; il flusso browser è stato verificato sul Compose di test. |
+| Test per le funzioni future (Apple live, scheduler, Ollama, Maps) | Maps e gli eventi hanno test simulati. Apple live, scheduler e Ollama restano da implementare e testare. Registrazione, sessione browser e rate limit hanno già test; il flusso browser è stato verificato sul Compose di test. |
 
 ## Prerequisiti
 
@@ -242,11 +243,11 @@ Nessun valore è riportato qui. Gli esempi sono `.env.example` e `.env.test.exam
 
 Sul rate limit: se le variabili sono assenti o vuote valgono i valori normali; un valore non valido (non un intero ≥ 1) **ferma l'avvio del backend**. `docker-compose.yml` inoltra tutte e sei al backend, con quei valori normali come predefiniti (commentate in `.env.example`). Il Compose di test le imposta molto più alte (registrazione 1000; login 1000 / 1000 / 10000; finestra 900 s, facoltative in `.env.test`) perché la suite registra e accede decine di volte dallo stesso IP; i limitatori veri si provano con soglie basse iniettate nei test.
 
-**Serviranno alle funzioni future** (non ancora presenti in `.env.example`)
+**Configurazione browser della mappa e funzioni future**
 
 | Chiave / configurazione | Per che cosa |
 |---|---|
-| Chiave **browser** Google Maps JavaScript API | Mappa della pagina Eventi. È visibile nel browser: va protetta con restrizioni (referrer HTTP per `localhost` e i domini previsti, restrizione all'API), non trattata come segreta. Servizio e fatturazione vanno attivati nel progetto Google Cloud secondo i requisiti in vigore. |
+| `VITE_GOOGLE_MAPS_API_KEY`, `VITE_GOOGLE_MAPS_MAP_ID` | Mappa della pagina Eventi; esempi vuoti in `frontend/.env.example` e `.env.test.example`. Valori locali in `frontend/.env.local` per Vite o `.env.test` per la build Compose. Chiave browser visibile nel bundle: proteggere con referrer HTTP ammessi e restrizione Maps JavaScript API. Occorre un Map ID JavaScript per i marker avanzati. Servizio e fatturazione vanno attivati nel progetto Google Cloud. [Istruzioni frontend](frontend/README.md#eventi-e-google-maps). |
 | Ticketmaster (già sopra) | Sincronizzazione automatica degli eventi. |
 | URL e nome del modello **Ollama** | Revisione AI locale. Ollama non usa chiavi cloud; non sono previsti fallback cloud. |
 
@@ -287,7 +288,7 @@ Panoramica **non esaustiva** delle famiglie di route (dettaglio in `backend/src/
 | Stato | `GET /health` (fuori da `/api`) | pubblico |
 | Catalogo | `/generi`, `/artisti`, `/brani/:id`, `/album/:id`, `/ricerca?q=` | pubblico |
 | Link esterni | `/album/:id/link-spotify`, `/brani/:id/link-apple`, `/album/:id/copertina-itunes` | pubblico |
-| Eventi e novità | `/eventi`, `/novita` | pubblico; alcune viste dipendono dalla sessione |
+| Eventi e novità | `GET /eventi?filtro=tutti`, `GET /eventi?filtro=seguiti`, `GET /eventi/:id`, `/novita` | Eventi tutti e dettaglio pubblici; seguiti richiede una sessione valida (401), filtro non valido 400, ID assente/non pubblicato 404. |
 | Account | `/auth/login` (bearer, app Android), `/auth/web/login` (browser, richiede la sessione web configurata), `/auth/io`, `/auth/logout`, `/auth/logout-tutti` (bearer o cookie) | login pubblici; gli altri richiedono una sessione |
 | Follow | `/artisti/:id/segui` | autenticato |
 | Playlist | `/playlist` | autenticato, per utente |
@@ -436,7 +437,7 @@ Cose **non verificate** o con difetti noti:
 
 ## Funzionalità future e riferimenti
 
-Funzionalità previste (vedi [Da implementare](#da-implementare)): frontend web «Club», registrazione USER, ricerca Apple live e promozione controllata nel catalogo, tendenze Apple, scheduler Ticketmaster con un solo esecutore, Google Maps con quattro layer, revisione ADMIN assistita da Ollama locale.
+Funzionalità previste (vedi [Da implementare](#da-implementare)): ricerca Apple live e promozione controllata nel catalogo, tendenze Apple, scheduler Ticketmaster con un solo esecutore, revisione ADMIN assistita da Ollama locale. Google Maps con quattro layer è implementata nel frontend e attende prova reale con configurazione Google.
 
 Riferimenti da consultare. **Tutti gli indirizzi qui sotto sono da verificare:** li ho scritti a memoria, non li ho aperti né confrontati con le fonti ufficiali in questa sessione, quindi non vanno considerati fonti ufficiali confermate finché non li controlli tu (e le condizioni d'uso e i limiti di ogni servizio vanno letti alla fonte prima di usarlo).
 

@@ -1,6 +1,19 @@
 # Waveset — frontend web
 
-Il frontend comprende **Accedi**, **Registrati**, un'**Area** autenticata essenziale e **Esplora del catalogo locale**, con dettagli artista, brano e album nello stile «Club». Eventi, Playlist, mappa e AI restano incrementi successivi.
+Il frontend comprende accesso, registrazione, area, catalogo locale, `/eventi` e `/eventi/:id` nello stile «Club». La mappa Google funziona quando sono configurati chiave browser e Map ID. Playlist, ricerca Apple live, ADMIN e AI web restano incrementi successivi.
+
+## Eventi e Google Maps
+
+- `/eventi` legge `GET /api/eventi?filtro=tutti` anche per gli ospiti. Il pulsante «Artisti che seguo» imposta `?filtro=seguiti`, richiede la sessione browser e legge `GET /api/eventi?filtro=seguiti`. La selezione è nell'URL; i link diretti e la navigazione indietro del browser funzionano. `/eventi/:id` legge `GET /api/eventi/:id`, pubblico.
+- Il backend pubblica eventi da oggi in poi, ordinati per data e ora, e include il lineup degli artisti locali. `data_evento` è il giorno locale del locale in `YYYY-MM-DD`: le tre query della sola route eventi usano `DATE_FORMAT` per impedire che mysql2 e JSON lo convertano in un istante UTC. `ora_evento` rimane l'ora locale separata. La pagina valida date, orari, lineup, ID e coordinate. Un evento senza coordinate resta nell'elenco.
+- Le quattro modalità sono Standard (`roadmap`), Scura (`roadmap` con `ColorScheme.DARK`), Satellite (`satellite`) e Ibrida (`hybrid`). La modalità si salva in localStorage sotto `waveset.eventi.modalitaMappa`; è l'unico dato della funzione salvato lì. Il passaggio a/dalla Scura ricrea la mappa conservando centro, zoom e selezione, perché Google applica `colorScheme` solo alla creazione.
+- I marker avanzati sono collegati alla lista: la selezione di un marker porta il focus alla carta corrispondente; dalla carta si seleziona il marker. Lista e dettagli restano utilizzabili se la configurazione manca, il loader fallisce, Google rifiuta l'autenticazione o la mappa supera il timeout. I controlli sono accessibili tramite tastiera; su schermi stretti mappa e lista si dispongono in colonna.
+
+Per lo sviluppo Vite copia `frontend/.env.example` in `frontend/.env.local` e imposta `VITE_GOOGLE_MAPS_API_KEY` e `VITE_GOOGLE_MAPS_MAP_ID` **solo nel file locale ignorato da Git**. Per il Compose di test imposta le stesse variabili nel `.env.test` locale prima della build: il Compose le passa come build args al Dockerfile. Dopo un cambio ricostruisci l'immagine frontend. Senza valori la lista eventi funziona e spiega perché non mostra la mappa.
+
+In Google Cloud occorrono un progetto con fatturazione abilitata, la **Maps JavaScript API** attiva, una chiave browser con restrizione alla sola API e ai referrer HTTP esatti usati dall'app (per esempio `http://localhost:5173/*`, `http://localhost:5174/*` e i domini HTTPS previsti), e un **Map ID JavaScript** per gli Advanced Markers. La chiave browser sarà visibile nel bundle: limita referrer e API e controlla quote e spesa nel progetto Cloud. La chiave server opzionale della Geocoding API è distinta e non va nel frontend. Fonti Google: [caricamento della API](https://developers.google.com/maps/documentation/javascript/load-maps-js-api), [Advanced Markers e Map ID](https://developers.google.com/maps/documentation/javascript/advanced-markers/start), [modalità scura](https://developers.google.com/maps/documentation/javascript/mapcolorscheme), [fatturazione](https://developers.google.com/maps/documentation/javascript/usage-and-billing).
+
+I test Vitest simulano il backend e Google Maps. Non è stata eseguita una prova con chiave, Map ID, browser reale o database, né sono stati avviati Docker o DB in questo incremento.
 
 ## Esplora locale e dettagli (verificati sull'host)
 
@@ -8,18 +21,18 @@ Le nuove pagine pubbliche sono `/esplora`, `/artisti/:id`, `/brani/:id` e `/albu
 
 - Esplora legge `/api/generi` e `/api/artisti?genere_id=…`. Il genere filtra soltanto l'elenco degli artisti, mentre la ricerca `/api/ricerca?q=…` consulta tutto il catalogo locale, con sezioni Artisti e Brani.
 - Ricerca da 2 a 100 caratteri, debounce di 300 ms, caricamento, errore/riprova e risultati vuoti. Le risposte superate vengono ignorate anche dopo cambio filtro, cambio ID, svuotamento, smontaggio o ritorno a una ricerca precedente.
-- I dettagli collegano soltanto artista, album e brani effettivamente presenti nella risposta. Gestiscono 404, campi nulli, brani senza album, featuring separati e liste vuote. Gli eventi dell'artista sono informazioni senza link a una schermata ancora assente.
+- I dettagli collegano soltanto artista, album e brani effettivamente presenti nella risposta. Gestiscono 404, campi nulli, brani senza album, featuring separati e liste vuote. Gli eventi dell'artista collegano al dettaglio evento.
 - Il modulo `src/api/catalogo.ts` valida le risposte e normalizza snake_case/camelCase. Usa il client HTTP esistente, sempre sulla stessa origine, con sole GET per il catalogo.
 - I link Apple alle tracce e Spotify agli album usano le mappature backend esistenti; un 404 significa link assente, un guasto permette una riprova separata. Non viene chiamata la copertina iTunes live e non sono implementate ricerca Apple live o nuove integrazioni.
 - Card e sfondi usano i gradienti e il lime Club. Le immagini Picsum non vengono mostrate: il fallback è grafica astratta dichiarata. Le foto artista vengono mostrate nel dettaglio soltanto con crediti; i link attivi sono limitati a URL HTTPS ammessi.
 
-**Verifica di questo incremento:** lint, typecheck, **156 test frontend in 10 file** e build passati sull'host. I test simulano le API, senza Docker, DB o chiamate a servizi esterni. Nessuna nuova prova browser reale o build/avvio Compose: la verifica Compose descritta sotto riguarda il precedente incremento di autenticazione. La suite backend e la migrazione dei teardown restano ferme.
+**Verifica precedente di Esplora:** lint, typecheck, 156 test frontend in 10 file e build passati sull'host. I test simulavano le API, senza Docker, DB o chiamate a servizi esterni. La verifica Compose descritta sotto riguarda l'incremento di autenticazione.
 
 ## Stack e scelte
 
 - **Vite + React 19 + TypeScript**, routing con `react-router`.
 - **CSS: variabili CSS + CSS Modules, senza librerie.** Nessuna dipendenza di stile (NativeWind non è richiesto), nessun font esterno (Arial/Helvetica come nell'anteprima). Motivo: i token Club sono pochi e fissi, i moduli isolano gli stili per componente e non serve altro.
-- **Sessione: cookie HttpOnly + CSRF.** Il browser custodisce il cookie `waveset_sid` (JavaScript non lo vede). Il token CSRF arriva nella risposta di `web/login` e di `/auth/io` e vive **solo in memoria del modulo** `src/api/client.ts`. Nulla in `localStorage`/`sessionStorage`. Le richieste usano `credentials: 'same-origin'`; il codice **non imposta mai** `Origin` né `Cookie` (lo fa il browser).
+- **Sessione: cookie HttpOnly + CSRF.** Il browser custodisce il cookie `waveset_sid` (JavaScript non lo vede). Il token CSRF arriva nella risposta di `web/login` e di `/auth/io` e vive **solo in memoria del modulo** `src/api/client.ts`. Solo la preferenza di visualizzazione Maps va in localStorage; nessuna credenziale o token va nello storage. Le richieste usano `credentials: 'same-origin'`; il codice **non imposta mai** `Origin` né `Cookie` (lo fa il browser).
 - **Test:** Vitest + Testing Library (jsdom).
 
 ## Origine dei colori e cosa è «composto»
@@ -114,11 +127,14 @@ Se il backend locale di test è su un'altra porta, imposta `API_TARGET` al suo U
 | `GET /api/auth/io` | 200 `{utente,csrf}` (riconoscimento dopo il ricarico); 401 → anonimo |
 | `POST /api/auth/logout`, `/api/auth/logout-tutti` | 204 (con `X-CSRF-Token`); 401 → torna all'accesso |
 | `POST /api/auth/registrazione` `{nome,email,password}` | 201 (non apre sessione); 400 con `campi` per campo; 409; 429 |
+| `GET /api/eventi?filtro=tutti` | 200 array, pubblico; 400 filtro non valido |
+| `GET /api/eventi?filtro=seguiti` | 200 array con almeno un artista seguito; 401 senza sessione valida |
+| `GET /api/eventi/:id` | 200 oggetto pubblico; 404 assente o non pubblicato |
 
 ## Limiti noti
 
 - Registrarsi da un browser che ha ancora un cookie di sessione revocato altrove dà 403 dal backend: il frontend mostra un messaggio controllato, ma la correzione spetta al backend.
-- Testi solo in italiano; il frontend è presente nel solo Compose di test. Esplora locale e dettagli sono implementati e verificati sull'host; ricerca Apple live, Eventi, Playlist, mappa, ADMIN e AI web restano da implementare.
+- Testi solo in italiano; il frontend è presente nel solo Compose di test. Esplora locale, Eventi e dettagli sono implementati. La mappa richiede configurazione Google e non è stata provata su Google reale; ricerca Apple live, Playlist, ADMIN e AI web restano da implementare.
 - I test frontend usano un backend simulato. In questo incremento sono passati lint, typecheck, **96 test** e build sull'host, più la build Docker e la prova reale descritta sopra. Sono passati anche **385 test backend pertinenti**, senza scritture nel DB; la suite backend completa non è stata rieseguita.
 - Lo script Chrome/CDP è temporaneo e non incluso nel repository. Le sue asserzioni usano `textContent` per evitare l'effetto del CSS uppercase e consumano i corpi fetch diagnostici senza stamparli; nessuna correzione applicativa è stata necessaria.
 - Avvio da clone/volume vuoto, HTTPS e arresto dello stack non verificati in questo incremento. Dietro nginx i rate limit condividono l'IP del proxy perché `trust proxy` resta disattivato.
