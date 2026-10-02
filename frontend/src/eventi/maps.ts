@@ -1,0 +1,174 @@
+import type { Evento } from '../api/eventi';
+
+export const MODALITA_MAPPA = ['standard', 'scura', 'satellite', 'ibrida'] as const;
+export type ModalitaMappa = typeof MODALITA_MAPPA[number];
+export const STORAGE_MAPPA = 'waveset.eventi.modalitaMappa';
+export const TIMEOUT_MAPPA = 12000;
+export function leggiModalita(): ModalitaMappa {
+    try {
+        const v = localStorage.getItem(STORAGE_MAPPA);
+        return MODALITA_MAPPA.find((m) => m === v) ?? 'standard';
+    } catch { return 'standard'; }
+}
+export function salvaModalita(v: ModalitaMappa) {
+    try { localStorage.setItem(STORAGE_MAPPA, v); } catch { /* Storage disabilitato: la scelta resta in memoria. */ }
+}
+
+export interface LibrerieMaps {
+    maps: google.maps.MapsLibrary;
+    marker: google.maps.MarkerLibrary;
+    core: google.maps.CoreLibrary;
+}
+let configurato = false;
+let librerie: Promise<LibrerieMaps> | null = null;
+let autenticazioneFallita = false;
+const ascoltatoriAuth = new Set<() => void>();
+let authInstallata = false;
+
+export function ascoltaErroreGoogle(ascoltatore: () => void): () => void {
+    if (!authInstallata) {
+        const precedente = window.gm_authFailure;
+        window.gm_authFailure = () => {
+            autenticazioneFallita = true;
+            for (const avvisa of ascoltatoriAuth) avvisa();
+            precedente?.();
+        };
+        authInstallata = true;
+    }
+    ascoltatoriAuth.add(ascoltatore);
+    if (autenticazioneFallita) ascoltatore();
+    return () => { ascoltatoriAuth.delete(ascoltatore); };
+}
+
+// Una sola configurazione per pagina e una promessa condivisa anche nei due
+// setup di StrictMode. Il timeout di un consumatore non annulla altri consumer.
+export async function caricaMaps(chiave: string): Promise<LibrerieMaps> {
+    if (autenticazioneFallita) throw new Error('Google Maps non ha autorizzato la mappa.');
+    if (!librerie) {
+        librerie = (async () => {
+            const { setOptions, importLibrary } = await import('@googlemaps/js-api-loader');
+            if (!configurato) {
+                setOptions({ key: chiave, v: 'weekly', language: 'it', region: 'IT' });
+                configurato = true;
+            }
+            const [maps, marker, core] = await Promise.all([
+                importLibrary('maps'), importLibrary('marker'), importLibrary('core'),
+            ]);
+            return { maps, marker, core };
+        })().catch((errore: unknown) => { librerie = null; throw errore; });
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        const risultato = await Promise.race([
+            librerie,
+            new Promise<never>((_, rifiuta) => {
+                timer = setTimeout(() => rifiuta(new Error('Google Maps non risponde in tempo.')), TIMEOUT_MAPPA);
+            }),
+        ]);
+        if (autenticazioneFallita) throw new Error('Google Maps non ha autorizzato la mappa.');
+        return risultato;
+    } finally { clearTimeout(timer); }
+}
+
+// Adattatore imperativo: il cambio modalità preserva la vista e non avvia
+// richieste al backend. Nessun HTML della risposta API viene inserito nella mappa.
+export function creaMappa({ contenitore, api, mapId, eventi, modalita, selezionato, suSelezione, suPronto, suErrore }: {
+    contenitore: HTMLElement; api: LibrerieMaps; mapId: string; eventi: Evento[];
+    modalita: ModalitaMappa; selezionato: number | null;
+    suSelezione: (id: number) => void; suPronto: () => void; suErrore: (messaggio: string) => void;
+}) {
+    let mappa: google.maps.Map;
+    let modo = modalita;
+    let scelta = selezionato;
+    let distrutta = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let listenerTile: google.maps.MapsEventListener | undefined;
+    let markers: { evento: Evento; marker: google.maps.marker.AdvancedMarkerElement; pin: google.maps.marker.PinElement; click: () => void }[] = [];
+
+    function rimuoviMappa() {
+        clearTimeout(timer);
+        listenerTile?.remove();
+        for (const { marker, click } of markers) {
+            marker.removeEventListener('gmp-click', click);
+            marker.map = null;
+        }
+        markers = [];
+        if (mappa) api.core.event.clearInstanceListeners(mappa);
+        contenitore.replaceChildren();
+    }
+    function evidenzia() {
+        for (const { evento, marker, pin } of markers) {
+            marker.zIndex = evento.id === scelta ? 1000 : undefined;
+            marker.title = `${evento.id === scelta ? 'Selezionato: ' : ''}${evento.titolo}${evento.lineup[0] ? ` · ${evento.lineup[0].nome}` : ''}`;
+            pin.background = evento.id === scelta ? '#d8ff58' : '#80e9a7';
+            pin.scale = evento.id === scelta ? 1.3 : 1;
+        }
+    }
+    function tipo(m: ModalitaMappa) {
+        return m === 'satellite' ? 'satellite' : m === 'ibrida' ? 'hybrid' : 'roadmap';
+    }
+    function inizializza(vista?: { center: google.maps.LatLngLiteral | undefined; zoom: number | undefined; heading: number | undefined; tilt: number | undefined }) {
+        mappa = new api.maps.Map(contenitore, {
+            mapId, center: vista?.center ?? { lat: 42.5, lng: 12.5 }, zoom: vista?.zoom ?? 5,
+            heading: vista?.heading, tilt: vista?.tilt,
+            mapTypeId: tipo(modo), colorScheme: modo === 'scura' ? api.core.ColorScheme.DARK : api.core.ColorScheme.LIGHT,
+            mapTypeControl: false, streetViewControl: false, fullscreenControl: true,
+            keyboardShortcuts: true, gestureHandling: 'cooperative',
+        });
+        timer = setTimeout(() => { if (!distrutta) suErrore('Google Maps non risponde in tempo.'); }, TIMEOUT_MAPPA);
+        listenerTile = mappa.addListener('tilesloaded', () => {
+            clearTimeout(timer);
+            if (!distrutta) suPronto();
+        });
+        const bounds = new api.core.LatLngBounds();
+        for (const evento of eventi) {
+            if (!evento.coordinate) continue;
+            const pin = new api.marker.PinElement({
+                background: '#80e9a7', borderColor: '#132016', glyphColor: '#132016',
+                glyphText: evento.lineup[0]?.nome.slice(0, 1).toUpperCase() ?? '•',
+            });
+            const marker = new api.marker.AdvancedMarkerElement({
+                map: mappa, position: evento.coordinate, title: evento.titolo, gmpClickable: true,
+            });
+            marker.append(pin);
+            const click = () => { if (!distrutta) suSelezione(evento.id); };
+            marker.addEventListener('gmp-click', click);
+            markers.push({ evento, marker, pin, click });
+            bounds.extend(evento.coordinate);
+        }
+        if (!vista && markers.length === 1) {
+            mappa.setCenter(markers[0]!.evento.coordinate!);
+            mappa.setZoom(13);
+        } else if (!vista && markers.length > 1) {
+            mappa.fitBounds(bounds, 48);
+        }
+        evidenzia();
+        if (!vista && scelta !== null) {
+            const e = eventi.find((e) => e.id === scelta);
+            if (e?.coordinate) mappa.panTo(e.coordinate);
+        }
+    }
+    try { inizializza(); } catch (errore) { rimuoviMappa(); throw errore; }
+    return {
+        modalita(nuova: ModalitaMappa) {
+            if (distrutta || nuova === modo) return;
+            const ricrea = (modo === 'scura') !== (nuova === 'scura');
+            modo = nuova;
+            try {
+                if (ricrea) {
+                    const vista = { center: mappa.getCenter()?.toJSON(), zoom: mappa.getZoom(), heading: mappa.getHeading(), tilt: mappa.getTilt() };
+                    rimuoviMappa();
+                    inizializza(vista);
+                } else { mappa.setMapTypeId(tipo(modo)); }
+            } catch { suErrore('Non è possibile cambiare la modalità della mappa. Riprova.'); }
+        },
+        seleziona(id: number | null) {
+            if (distrutta || id === scelta) return;
+            scelta = id;
+            evidenzia();
+            const evento = eventi.find((e) => e.id === id);
+            if (evento?.coordinate) mappa.panTo(evento.coordinate);
+        },
+        distruggi() { distrutta = true; rimuoviMappa(); },
+    };
+}

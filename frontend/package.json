@@ -14,6 +14,7 @@
         "format": "prettier --write ."
     },
     "dependencies": {
+        "@googlemaps/js-api-loader": "2.1.3",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
         "react-router": "^8.4.0"

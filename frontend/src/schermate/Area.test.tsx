@@ -34,11 +34,10 @@ describe('area autenticata essenziale', () => {
             screen.getByRole('button', { name: 'Esci da tutti i dispositivi' }),
         ).toBeInTheDocument();
 
-        // Nessuna sezione che non esiste ancora, nessun token nella pagina.
+        // Eventi e catalogo sono sezioni reali; Playlist non esiste ancora.
         expect(screen.getByRole('link', { name: 'Esplora' })).toHaveAttribute('href', '/esplora');
-        for (const voce of ['Eventi', 'Playlist']) {
-            expect(screen.queryByRole('link', { name: voce })).not.toBeInTheDocument();
-        }
+        expect(screen.getByRole('link', { name: 'Eventi' })).toHaveAttribute('href', '/eventi');
+        expect(screen.queryByRole('link', { name: 'Playlist' })).not.toBeInTheDocument();
         expect(document.body).not.toHaveTextContent(CSRF);
     });
 

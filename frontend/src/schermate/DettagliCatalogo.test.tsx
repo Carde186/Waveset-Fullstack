@@ -36,7 +36,7 @@ test('navigazione reale artista → album → brano → artista → Esplora, sol
     await titolo('Nova Circuit');
     expect(screen.getByText('Suoni dalla scena dei club.')).toBeInTheDocument();
     expect(screen.getByText('Orario non disponibile', { exact: false })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Circuiti Live/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Circuiti Live/ })).toHaveAttribute('href', '/eventi/101');
     await utente.click(screen.getByRole('link', { name: 'Apri album Circuiti Notturni' }));
     await titolo('Circuiti Notturni');
     await utente.click(screen.getByRole('link', { name: /Voltaggio/ }));

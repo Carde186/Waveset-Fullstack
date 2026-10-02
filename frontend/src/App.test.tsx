@@ -141,7 +141,7 @@ describe('navigazione e stati', () => {
             within(navigazione)
                 .getAllByRole('link')
                 .map((l) => l.textContent),
-        ).toEqual(['Esplora', 'Accedi', 'Registrati']);
+        ).toEqual(['Esplora', 'Eventi', 'Accedi', 'Registrati']);
         expect(screen.getByRole('link', { name: /Waveset, pagina iniziale/ })).toBeInTheDocument();
     });
 
@@ -156,7 +156,7 @@ describe('navigazione e stati', () => {
             within(navigazione)
                 .getAllByRole('link')
                 .map((l) => l.textContent),
-        ).toEqual(['Esplora', 'Area']);
+        ).toEqual(['Esplora', 'Eventi', 'Area']);
         expect(screen.getByRole('link', { name: /Alice ↗/ })).toHaveAttribute('href', '/area');
     });
 

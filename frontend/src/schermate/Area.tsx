@@ -7,7 +7,7 @@ import { Vetrina } from '../componenti/Vetrina';
 import stile from './Area.module.css';
 
 // Area autenticata essenziale: chi sei e come uscire. Nient'altro: le altre sezioni
-// Eventi e Playlist arriveranno in incrementi successivi; Esplora è nella barra.
+// Playlist arriverà in un incremento successivo; Esplora ed Eventi sono nella barra.
 export function Area() {
     const { stato, esci, esciDaTutti } = useAutenticazione();
     const [inCorso, impostaInCorso] = useState<'uscita' | 'uscita-tutti' | null>(null);

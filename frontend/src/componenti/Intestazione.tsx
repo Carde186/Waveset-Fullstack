@@ -19,6 +19,9 @@ export function Intestazione() {
                 <NavLink to="/esplora" className={classeVoce}>
                     Esplora
                 </NavLink>
+                <NavLink to="/eventi" className={classeVoce}>
+                    Eventi
+                </NavLink>
                 {stato.tipo === 'autenticato' ? (
                     <NavLink to="/area" className={classeVoce}>
                         Area

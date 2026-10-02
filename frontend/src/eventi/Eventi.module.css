@@ -1,0 +1,22 @@
+.filtri { display: flex; flex-wrap: wrap; gap: 12px; margin: 28px 0; }
+.disposizione { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; align-items: start; margin: 24px 0; }
+.pannelloMappa, .carta { min-width: 0; border: 1px solid var(--linea); background: var(--pannello); border-radius: 20px; padding: 24px; overflow-wrap: anywhere; }
+.pannelloMappa { position: sticky; top: 100px; }
+.pannelloMappa h2, .carta h2, .carta h3 { margin-top: 0; }
+.carta h3 { font-size: 1.4rem; }
+.lista { display: grid; gap: 18px; padding: 0; list-style: none; }
+.selezionata { border-color: var(--lime); background: var(--pannello-2); }
+.lineup { display: flex; flex-wrap: wrap; gap: 12px 20px; padding: 0; list-style: none; margin: 20px 0; }
+.lineup a, .carta h3 a, .percorso a { color: var(--lime); }
+.carta p { color: var(--tenue); line-height: 1.6; }
+.carta button { white-space: normal; text-align: left; }
+.selettore { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0; }
+.selettore select { max-width: 100%; min-height: 44px; border: 1px solid var(--campo-bordo); border-radius: 10px; padding: 10px; color: var(--bianco); background: var(--campo-sfondo); font: inherit; }
+.mappa { width: 100%; height: min(60vh, 520px); min-height: 300px; border-radius: 12px; }
+.percorso { margin-bottom: 24px; }
+@media (max-width: 800px) {
+    .disposizione { grid-template-columns: minmax(0, 1fr); }
+    .pannelloMappa { position: static; }
+    .pannelloMappa, .carta { padding: 18px; }
+    .mappa { height: 360px; }
+}

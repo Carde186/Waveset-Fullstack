@@ -8,6 +8,8 @@ import { Area } from './schermate/Area';
 import { Registrati } from './schermate/Registrati';
 import { Esplora } from './schermate/Esplora';
 import { DettaglioAlbum, DettaglioArtista, DettaglioBrano } from './schermate/DettagliCatalogo';
+import { Eventi } from './schermate/Eventi';
+import { DettaglioEvento } from './schermate/DettaglioEvento';
 
 // Finché la sessione non è nota (controllo iniziale con /auth/io) o se il backend
 // non ha risposto, si mostra lo stato relativo invece di indovinare.
@@ -74,6 +76,8 @@ export function App() {
                 <Routes>
                     <Route path="/" element={<Iniziale />} />
                     <Route path="/esplora" element={<Esplora />} />
+                    <Route path="/eventi" element={<Eventi />} />
+                    <Route path="/eventi/:id" element={<DettaglioEvento />} />
                     <Route path="/artisti/:id" element={<DettaglioArtista />} />
                     <Route path="/brani/:id" element={<DettaglioBrano />} />
                     <Route path="/album/:id" element={<DettaglioAlbum />} />

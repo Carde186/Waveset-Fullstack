@@ -158,7 +158,7 @@ export function DettaglioArtista() {
                         <ul className={stile.eventi}>
                             {artista.eventi.map((e) => (
                                 <li key={e.id}>
-                                    <strong>{e.titolo}</strong>
+                                    <strong><Link to={`/eventi/${e.id}`}>{e.titolo}</Link></strong>
                                     <p>
                                         {dataCatalogo(e.dataEvento)} ·{' '}
                                         {e.oraEvento?.slice(0, 5) ?? 'Orario non disponibile'}
