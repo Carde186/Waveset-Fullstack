@@ -56,6 +56,31 @@ test('filtro sconosciuto e duplicato: 400 locale senza richiesta eventi', async 
     expect(backend.chiamate.map((c) => c.percorso)).toEqual(['/api/auth/io']);
 });
 
+test.each([
+    ['?filtro=seguiti', '/eventi?filtro=seguiti', 'seguiti'],
+    ['?filtro=tutti', '/eventi?filtro=tutti', 'tutti'],
+    ['?filtro=seguiti&altro=valore', '/eventi?filtro=seguiti', 'seguiti'],
+    ['', '/eventi', 'tutti'],
+    ['?filtro=altro', '/eventi', 'tutti'],
+    ['?filtro=', '/eventi', 'tutti'],
+    ['?filtro=seguiti&filtro=tutti', '/eventi', 'tutti'],
+    ['?filtro=seguiti&filtro=seguiti', '/eventi', 'tutti'],
+])('ritorno dal dettaglio con query "%s": destinazione %s', async (query, destinazione, filtro) => {
+    const backend = simulaBackend({
+        'GET /api/auth/io': json(200, sessioneDi()),
+        'GET /api/eventi/1': json(200, UNO),
+        [`GET /api/eventi?filtro=${filtro}`]: json(200, [UNO]),
+    });
+    renderizzaApp(`/eventi/1${query}`);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Notte Elettrica' })).toBeInTheDocument();
+    const ritorno = within(screen.getByRole('navigation', { name: 'Percorso negli eventi' })).getByRole('link', { name: '← Eventi' });
+    expect(ritorno).toHaveAttribute('href', destinazione);
+    await userEvent.setup().click(ritorno);
+    expect(await screen.findByText('1 evento')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: filtro === 'seguiti' ? 'Artisti che seguo' : 'Tutti' })).toHaveAttribute('aria-pressed', 'true');
+    expect(backend.di('GET', `/api/eventi?filtro=${filtro}`)).toHaveLength(1);
+});
+
 test('ID non valido e 404: pagina dedicata', async () => {
     const backend = simulaBackend({
         'GET /api/auth/io': SESSIONE_NON_VALIDA(),

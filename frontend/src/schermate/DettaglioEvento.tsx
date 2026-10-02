@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import { idEventoDaPercorso, leggiEvento } from '../api/eventi';
 import { ErroreApi } from '../api/client';
 import { erroreCatalogo } from '../catalogo/formato';
@@ -13,6 +13,10 @@ import stile from '../eventi/Eventi.module.css';
 const nessunaSelezione = () => {};
 export function DettaglioEvento() {
     const { id: parametro } = useParams();
+    const [parametri] = useSearchParams();
+    const filtro = parametri.get('filtro');
+    const ritorno = parametri.getAll('filtro').length === 1 && (filtro === 'tutti' || filtro === 'seguiti')
+        ? `/eventi?filtro=${filtro}` : '/eventi';
     const id = idEventoDaPercorso(parametro);
     const carica = useCallback(() => id === null ? Promise.reject(new ErroreApi(400)) : leggiEvento(id), [id]);
     const { stato, riprova } = useRisorsa(`evento:${parametro}`, carica);
@@ -27,7 +31,7 @@ export function DettaglioEvento() {
     }
     const evento = stato.dati;
     return <section className="pagina">
-        <nav aria-label="Percorso negli eventi" className={stile.percorso}><Link to="/eventi">← Eventi</Link></nav>
+        <nav aria-label="Percorso negli eventi" className={stile.percorso}><Link to={ritorno}>← Eventi</Link></nav>
         <Vetrina><div className="occhiello">Evento · Catalogo locale</div><h1 className="titolo">{evento.titolo}</h1><InformazioniEvento evento={evento} /></Vetrina>
         <div className={stile.disposizione}>
             <MappaEventi eventi={eventiMappa} selezionato={evento.id} suSelezione={nessunaSelezione} />
