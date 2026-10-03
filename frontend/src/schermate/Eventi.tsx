@@ -12,6 +12,7 @@ import { StatoCaricamento, StatoErrore, StatoVuoto } from '../componenti/Stati';
 import { Vetrina } from '../componenti/Vetrina';
 import { InformazioniEvento, LineupEvento } from '../eventi/InformazioniEvento';
 import { MappaEventi } from '../eventi/MappaEventi';
+import { AggiornamentoEventi } from '../eventi/AggiornamentoEventi';
 import stile from '../eventi/Eventi.module.css';
 
 function Elenco({ eventi, filtro }: { eventi: Evento[]; filtro: FiltroEventi }) {
@@ -76,6 +77,7 @@ export function Eventi() {
     }
     return <section className="pagina">
         <Vetrina><div className="occhiello">{t('text.eventsLocalCatalog')}</div><h1 className="titolo">{t('text.seeYouByTheSpeakers')}</h1><p>{t('text.discoverUpcomingLiveShowsAndArtists')}</p></Vetrina>
+        {valido && (filtro === 'tutti' || stato.tipo === 'autenticato') ? <AggiornamentoEventi /> : null}
         <div className={stile.filtri} role="group" aria-label={t('text.filterEvents')}>
             <Bottone variante={filtro === 'tutti' ? 'primario' : 'contorno'} aria-pressed={filtro === 'tutti'} onClick={() => cambia('tutti')}>{t('text.all')}</Bottone>
             {stato.tipo === 'autenticato' || filtro === 'seguiti' ? <Bottone disabled={stato.tipo !== 'autenticato'} variante={filtro === 'seguiti' ? 'primario' : 'contorno'} aria-pressed={filtro === 'seguiti'} onClick={() => cambia('seguiti')}>{t('text.artistsIFollow')}</Bottone> : null}

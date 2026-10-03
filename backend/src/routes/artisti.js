@@ -4,6 +4,7 @@ const autenticazioneFacoltativa = require('../autenticazione/autenticazioneFacol
 const richiediAutenticazione = require('../autenticazione/richiediAutenticazione');
 const richiediRuolo = require('../autenticazione/richiediRuolo');
 const pool = require('../config/database');
+const { SOLO_PUBBLICATI } = require('../utilita/eventi');
 
 const router = express.Router();
 
@@ -92,7 +93,7 @@ async function dettaglioArtista(req, res) {
          FROM evento e
          INNER JOIN evento_artista ea ON ea.evento_id = e.id
          WHERE ea.artista_id = ? AND e.data_evento >= CURDATE()
-             AND e.stato = 'pubblicato'
+             AND ${SOLO_PUBBLICATI}
          ORDER BY e.data_evento ASC, e.ora_evento ASC`,
         [id],
     );

@@ -54,6 +54,13 @@ services:
             DB_PASSWORD: ${DB_PASSWORD}
             TICKETMASTER_API_KEY: ${TICKETMASTER_API_KEY:-}
             GOOGLE_GEOCODING_API_KEY: ${GOOGLE_GEOCODING_API_KEY:-}
+            TICKETMASTER_SYNC_ENABLED: ${TICKETMASTER_SYNC_ENABLED:-true}
+            TICKETMASTER_SYNC_INTERVAL_SEC: ${TICKETMASTER_SYNC_INTERVAL_SEC:-28800}
+            TICKETMASTER_SYNC_STALE_SEC: ${TICKETMASTER_SYNC_STALE_SEC:-86400}
+            TICKETMASTER_SYNC_MAX_ARTISTS: ${TICKETMASTER_SYNC_MAX_ARTISTS:-50}
+            TICKETMASTER_SYNC_MAX_PAGES: ${TICKETMASTER_SYNC_MAX_PAGES:-4}
+            TICKETMASTER_SYNC_MAX_REQUESTS: ${TICKETMASTER_SYNC_MAX_REQUESTS:-300}
+            TICKETMASTER_SYNC_TIMEOUT_MS: ${TICKETMASTER_SYNC_TIMEOUT_MS:-10000}
             # Rate limit, valori NORMALI (finestre di 15 minuti): registrazione
             # 30 richieste per IP; login 10 fallimenti per IP+email, 50
             # fallimenti e 100 tentativi totali per IP. Si cambiano da .env.
@@ -66,9 +73,50 @@ services:
         depends_on:
             mysql:
                 condition: service_healthy
+            ticketmaster-schema:
+                condition: service_completed_successfully
             admin-init:
                 condition: service_completed_successfully
         restart: unless-stopped
+
+    ticketmaster-schema:
+        build: ./backend
+        command: ["node", "scripts/preparaSincronizzazioneTicketmaster.js", "--applica"]
+        environment:
+            DB_HOST: mysql
+            DB_PORT: "3306"
+            DB_NAME: ${DB_NAME}
+            DB_USER: ${DB_USER}
+            DB_PASSWORD: ${DB_PASSWORD}
+        depends_on:
+            mysql:
+                condition: service_healthy
+        restart: "no"
+
+    ticketmaster-sync:
+        build: ./backend
+        command: ["node", "scripts/sincronizzaTicketmaster.js", "--continuo"]
+        environment:
+            DB_HOST: mysql
+            DB_PORT: "3306"
+            DB_NAME: ${DB_NAME}
+            DB_USER: ${DB_USER}
+            DB_PASSWORD: ${DB_PASSWORD}
+            TICKETMASTER_API_KEY: ${TICKETMASTER_API_KEY:-}
+            TICKETMASTER_SYNC_ENABLED: ${TICKETMASTER_SYNC_ENABLED:-true}
+            TICKETMASTER_SYNC_INTERVAL_SEC: ${TICKETMASTER_SYNC_INTERVAL_SEC:-28800}
+            TICKETMASTER_SYNC_STALE_SEC: ${TICKETMASTER_SYNC_STALE_SEC:-86400}
+            TICKETMASTER_SYNC_MAX_ARTISTS: ${TICKETMASTER_SYNC_MAX_ARTISTS:-50}
+            TICKETMASTER_SYNC_MAX_PAGES: ${TICKETMASTER_SYNC_MAX_PAGES:-4}
+            TICKETMASTER_SYNC_MAX_REQUESTS: ${TICKETMASTER_SYNC_MAX_REQUESTS:-300}
+            TICKETMASTER_SYNC_TIMEOUT_MS: ${TICKETMASTER_SYNC_TIMEOUT_MS:-10000}
+        depends_on:
+            mysql:
+                condition: service_healthy
+            ticketmaster-schema:
+                condition: service_completed_successfully
+        restart: unless-stopped
+        stop_grace_period: 45s
 
 volumes:
     mysql_data:

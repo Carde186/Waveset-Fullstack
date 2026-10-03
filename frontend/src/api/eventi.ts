@@ -11,6 +11,19 @@ export interface Evento {
     citta: string | null;
     coordinate: { lat: number; lng: number } | null;
     lineup: ArtistaSintetico[];
+    fonte?: { stato: string; ultimoControllo: string | null; assente: boolean; modifiche: boolean };
+}
+
+export interface StatoSincronizzazione {
+    configurata: boolean; attiva: boolean; ultimo_tentativo: string | null; ultimo_successo: string | null;
+    dati_vecchi: boolean; errore_temporaneo: boolean; parziale: boolean; intervallo_secondi: number;
+}
+export async function leggiStatoSincronizzazione(): Promise<StatoSincronizzazione> {
+    const r = oggetto(await richiesta('/eventi/sincronizzazione'));
+    for (const k of ['configurata', 'attiva', 'dati_vecchi', 'errore_temporaneo', 'parziale']) if (typeof r[k] !== 'boolean') return inattesa();
+    for (const k of ['ultimo_tentativo', 'ultimo_successo']) if (r[k] !== null && (typeof r[k] !== 'string' || !Number.isFinite(Date.parse(r[k])))) return inattesa();
+    if (typeof r.intervallo_secondi !== 'number' || !Number.isFinite(r.intervallo_secondi) || r.intervallo_secondi <= 0) return inattesa();
+    return r as unknown as StatoSincronizzazione;
 }
 
 function inattesa(): never { throw new ErroreApi(200); }
@@ -78,6 +91,11 @@ export function normalizzaEvento(v: unknown): Evento {
         luogo: nullable(r.luogo), citta: nullable(r.citta),
         coordinate: lat !== null && lng !== null ? { lat, lng } : null,
         lineup,
+        ...(r.fonte === 'ticketmaster' ? { fonte: {
+            stato: ['onsale', 'offsale', 'canceled', 'postponed', 'rescheduled'].includes(String(r.stato_fonte)) ? String(r.stato_fonte) : 'unknown',
+            ultimoControllo: typeof r.ultimo_controllo === 'string' && Number.isFinite(Date.parse(r.ultimo_controllo)) ? r.ultimo_controllo : null,
+            assente: r.assente_fonte === true, modifiche: r.modifiche_fonte === true,
+        } } : {}),
     };
 }
 export async function elencaEventi(filtro: FiltroEventi = 'tutti'): Promise<Evento[]> {

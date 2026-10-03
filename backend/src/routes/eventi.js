@@ -2,6 +2,7 @@ const express = require('express');
 
 const autenticazioneFacoltativa = require('../autenticazione/autenticazioneFacoltativa');
 const pool = require('../config/database');
+const { statoPubblico } = require('../ticketmaster/stato');
 const {
     COLONNE_EVENTO: COLONNE_EVENTO_CONDIVISE,
     CON_ARTISTA_SEGUITO,
@@ -17,7 +18,9 @@ const router = express.Router();
 const COLONNE_EVENTO = COLONNE_EVENTO_CONDIVISE.replace(
     'e.data_evento',
     "DATE_FORMAT(e.data_evento, '%Y-%m-%d') AS data_evento",
-);
+) + `,e.fonte,tm.stato_fonte,DATE_FORMAT(tm.ultimo_controllo,'%Y-%m-%dT%H:%i:%sZ') ultimo_controllo,
+    tm.assente_dal IS NOT NULL assente_fonte,tm.modifiche_fonte`;
+const FONTE = 'LEFT JOIN ticketmaster_evento_fonte tm ON tm.evento_id=e.id';
 
 // Eventi futuri (da oggi in poi), per data e ora. filtro=seguiti: solo
 // quelli con almeno un artista seguito in lineup, e richiede la sessione.
@@ -40,7 +43,7 @@ async function elencaEventi(req, res) {
         filtro === 'seguiti'
             ? await pool.query(
                   `SELECT ${COLONNE_EVENTO}
-                   FROM evento e
+                   FROM evento e ${FONTE}
                    WHERE e.data_evento >= CURDATE() AND ${SOLO_PUBBLICATI}
                        AND ${CON_ARTISTA_SEGUITO}
                    ORDER BY e.data_evento, e.ora_evento`,
@@ -48,7 +51,7 @@ async function elencaEventi(req, res) {
               )
             : await pool.query(
                   `SELECT ${COLONNE_EVENTO}
-                   FROM evento e
+                   FROM evento e ${FONTE}
                    WHERE e.data_evento >= CURDATE() AND ${SOLO_PUBBLICATI}
                    ORDER BY e.data_evento, e.ora_evento`,
               );
@@ -58,7 +61,7 @@ async function elencaEventi(req, res) {
 
 async function dettaglioEvento(req, res) {
     const [righe] = await pool.query(
-        `SELECT ${COLONNE_EVENTO} FROM evento e
+        `SELECT ${COLONNE_EVENTO} FROM evento e ${FONTE}
          WHERE e.id = ? AND ${SOLO_PUBBLICATI}`,
         [req.params.id],
     );
@@ -73,6 +76,11 @@ async function dettaglioEvento(req, res) {
 }
 
 router.get('/eventi', autenticazioneFacoltativa, elencaEventi);
+router.get('/eventi/sincronizzazione', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try { res.json(await statoPubblico(pool)); }
+    catch { throw new Error('Stato sincronizzazione non disponibile'); }
+});
 router.get('/eventi/:id', dettaglioEvento);
 
 module.exports = router;

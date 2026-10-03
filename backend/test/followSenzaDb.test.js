@@ -17,7 +17,7 @@ const db = { async query(sql, valori = []) {
     if (sql.includes('FROM artista WHERE')) return [[{ id: Number(valori[0]), nome: 'Artista', bio: null, immagine_url: null }]];
     if (sql.includes('FROM evento e') && sql.includes('CURDATE()')) {
         const eventi = [{ id: 1, titolo: 'Principale', data_evento: '2027-01-01', latitudine: '45', longitudine: '9' }, { id: 2, titolo: 'Con ospite', data_evento: '2027-01-02', latitudine: null, longitudine: null }];
-        return [sql.includes('EXISTS') ? eventi.filter(e => (e.id === 1 ? [1] : [1, 2]).some(id => follow.has(`${valori[0]}:${id}`))) : eventi];
+        return [sql.includes('INNER JOIN utente_artista ua') ? eventi.filter(e => (e.id === 1 ? [1] : [1, 2]).some(id => follow.has(`${valori[0]}:${id}`))) : eventi];
     }
     if (sql.includes('SELECT ea.evento_id')) return [[...valori[0].flatMap(id => (id === 1 ? [1] : [1, 2]).map(a => ({ evento_id: id, id: a, nome: `Artista ${a}`, immagine_url: null })))]];
     if (sql.includes('FROM genere') || sql.includes('FROM brano') || sql.includes('FROM album') || sql.includes('INNER JOIN evento_artista')) return [[]];

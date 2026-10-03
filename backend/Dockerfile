@@ -11,6 +11,7 @@ RUN npm ci --omit=dev
 
 COPY src ./src
 COPY scripts ./scripts
+COPY db/init/13_ticketmaster_sync_schema.sql ./db/init/13_ticketmaster_sync_schema.sql
 
 EXPOSE 3000
 

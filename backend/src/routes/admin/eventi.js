@@ -123,7 +123,8 @@ async function correggiEvento(req, res) {
     }
 
     await pool.query(
-        `UPDATE evento SET ${campi.map(c => `${c} = ?`).join(', ')} WHERE id = ?`,
+        `UPDATE evento e LEFT JOIN ticketmaster_evento_fonte sf ON sf.evento_id=e.id
+         SET ${campi.map(c => `e.${c} = ?`).join(', ')}, sf.protetto_admin=TRUE WHERE e.id = ? AND e.stato='in_coda'`,
         [...campi.map(c => req.body[c]), req.params.id],
     );
 
@@ -148,7 +149,7 @@ async function approvaEvento(req, res) {
     }
 
     await pool.query(
-        "UPDATE evento SET stato = 'pubblicato', motivo_revisione = NULL WHERE id = ?",
+        "UPDATE evento e LEFT JOIN ticketmaster_evento_fonte sf ON sf.evento_id=e.id SET e.stato = 'pubblicato', e.motivo_revisione = NULL, sf.protetto_admin=TRUE WHERE e.id = ? AND e.stato='in_coda'",
         [req.params.id],
     );
 
@@ -165,7 +166,7 @@ async function scartaEvento(req, res) {
     // Soft delete: la riga resta, con id_esterno intatto, così un import
     // successivo che ritrova lo stesso evento lo salta invece di
     // reinserirlo (vedi src/ticketmaster/importa.js).
-    await pool.query("UPDATE evento SET stato = 'scartato' WHERE id = ?", [
+    await pool.query("UPDATE evento e LEFT JOIN ticketmaster_evento_fonte sf ON sf.evento_id=e.id SET e.stato = 'scartato', sf.protetto_admin=TRUE WHERE e.id = ? AND e.stato='in_coda'", [
         req.params.id,
     ]);
 
@@ -204,6 +205,14 @@ async function confermaCollegamento(req, res) {
 
 router.get('/coda', elencaCoda);
 router.get('/coda/:id', dettaglioCoda);
+// Snapshot normalizzato della fonte, disponibile anche per eventi già
+// approvati/scartati. Nessuna chiave o risposta remota grezza.
+router.get('/:id/fonte', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const [righe] = await pool.query("SELECT snapshot,stato_fonte,protetto_admin,modifiche_fonte,DATE_FORMAT(ultimo_controllo,'%Y-%m-%dT%H:%i:%sZ') ultimo_controllo,DATE_FORMAT(assente_dal,'%Y-%m-%dT%H:%i:%sZ') assente_dal FROM ticketmaster_evento_fonte WHERE evento_id=?", [req.params.id]);
+    if (!righe.length) return res.status(404).json({ messaggio: 'Fonte evento non disponibile' });
+    res.json({ ...righe[0], protetto_admin: Boolean(righe[0].protetto_admin), modifiche_fonte: Boolean(righe[0].modifiche_fonte) });
+});
 router.patch('/:id', correggiEvento);
 router.post('/:id/approva', approvaEvento);
 router.post('/:id/scarta', scartaEvento);

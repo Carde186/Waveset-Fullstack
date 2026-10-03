@@ -9,7 +9,9 @@ const COLONNE_EVENTO = `e.id, e.titolo, e.data_evento, e.ora_evento, e.luogo,
 // vedere anche 'in_coda'): un evento importato da Ticketmaster resta
 // invisibile finché l'ADMIN non lo approva. 'manuale' è sempre pubblicato
 // (default della colonna), quindi il catalogo esistente non cambia.
-const SOLO_PUBBLICATI = "e.stato = 'pubblicato'";
+// L'annullamento della fonte non riscrive la decisione ADMIN nel catalogo.
+// Gli eventi ufficialmente annullati escono dagli elenchi pubblici.
+const SOLO_PUBBLICATI = "e.stato = 'pubblicato' AND NOT EXISTS (SELECT 1 FROM ticketmaster_evento_fonte sf WHERE sf.evento_id=e.id AND sf.stato_fonte='canceled')";
 
 // Condizione "ha in lineup almeno un artista seguito dall'utente ?".
 const CON_ARTISTA_SEGUITO = `EXISTS (
@@ -71,6 +73,11 @@ async function formattaEventi(righe) {
         latitudine: numeroONull(evento.latitudine),
         longitudine: numeroONull(evento.longitudine),
         lineup: lineup.get(evento.id),
+        ...(evento.fonte === 'ticketmaster' ? {
+            fonte: evento.fonte, stato_fonte: evento.stato_fonte ?? 'unknown',
+            ultimo_controllo: evento.ultimo_controllo ?? null,
+            assente_fonte: Boolean(evento.assente_fonte), modifiche_fonte: Boolean(evento.modifiche_fonte),
+        } : {}),
     }));
 }
 

@@ -48,7 +48,11 @@ export function simulaBackend(rotte: Record<string, Gestore | Response>) {
 
         chiamate.push(chiamata);
 
-        const gestore = rotte[`${metodo} ${percorso}`];
+        // Stato di base condiviso: Ticketmaster non configurato nelle fixture
+        // dei flussi precedenti. I test della sync dichiarano la propria risposta.
+        const gestore = rotte[`${metodo} ${percorso}`] ?? (metodo === 'GET' && percorso === '/api/eventi/sincronizzazione'
+            ? json(200, { configurata: false, attiva: false, ultimo_tentativo: null, ultimo_successo: null,
+                dati_vecchi: true, errore_temporaneo: false, parziale: false, intervallo_secondi: 28800 }) : undefined);
 
         if (gestore === undefined) {
             throw new Error(`Chiamata non prevista dal test: ${metodo} ${percorso}`);

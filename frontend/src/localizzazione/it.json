@@ -251,5 +251,18 @@
     "follow.expired": "La sessione è scaduta. Accedi per seguire gli artisti.",
     "follow.denied": "Operazione non consentita. Ricarica la pagina e riprova.",
     "follow.missing": "Questo artista non è più disponibile.",
-    "follow.error": "Non è possibile aggiornare il follow. Riprova."
+    "follow.error": "Non è possibile aggiornare il follow. Riprova.",
+    "sync.statusUnavailable": "Non è possibile verificare l’ultimo aggiornamento. I dati salvati restano disponibili.",
+    "sync.notConfigured": "Aggiornamento Ticketmaster non configurato. Sono mostrati i dati locali disponibili.",
+    "sync.disabled": "Aggiornamento automatico Ticketmaster disattivato.",
+    "sync.lastUpdate": "Ultimo aggiornamento completo da Ticketmaster:",
+    "sync.notYetUpdated": "La sincronizzazione Ticketmaster non ha ancora completato un aggiornamento.",
+    "sync.error": "Ticketmaster è temporaneamente indisponibile. Mostriamo gli ultimi dati salvati.",
+    "sync.partial": "Aggiornamento parziale: alcuni artisti o pagine non sono ancora stati verificati.",
+    "sync.stale": "I dati potrebbero essere vecchi. Controlla i dettagli dell’evento presso la fonte.",
+    "sync.eventSource": "Fonte Ticketmaster. Ultimo controllo:",
+    "sync.postponed": "Ticketmaster segnala l’evento come rinviato.",
+    "sync.rescheduled": "Ticketmaster segnala una nuova programmazione dell’evento.",
+    "sync.changes": "La fonte segnala variazioni rispetto ai dati curati. È necessaria una verifica.",
+    "sync.missing": "Evento non più presente nella fonte. Gli ultimi dati sono conservati; l’assenza non conferma un annullamento."
 }

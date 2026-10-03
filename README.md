@@ -59,11 +59,11 @@ Obiettivi del progetto (non presenti nel codice). Stato per voce:
 | Ricerca Apple live (iTunes Search API) mediata dal backend, distinta dal catalogo locale | **Da implementare** |
 | Promozione controllata di un risultato Apple nel catalogo locale | **Da implementare** |
 | Sezione «In tendenza» da feed Apple | **Da implementare** (opzionale) |
-| Scheduler automatico di sincronizzazione Ticketmaster (un solo esecutore, cache, backoff, protezione delle correzioni ADMIN) | **Da implementare**. Esiste un import Ticketmaster **manuale** ereditato dal backend originale (`backend/scripts/importaTicketmaster.js`, non verificato in questa sessione) |
+| Scheduler automatico di sincronizzazione Ticketmaster (un solo esecutore, cache, backoff, protezione delle correzioni ADMIN) | Implementato: worker Compose, comando manuale, lock MySQL e snapshot separati. Vedi [Sincronizzazione Ticketmaster](#sincronizzazione-ticketmaster). |
 | Google Maps JavaScript API nella pagina Eventi, con i quattro layer Standard / Scura / Satellite / Ibrida | Implementata nel frontend; SDK simulato nei test, non verificata con chiave e Google reali. Senza configurazione resta disponibile la lista. |
 | Ollama locale per la revisione ADMIN dei casi ambigui Apple ↔ Ticketmaster | **Da implementare** |
 | Rimozione della dipendenza dalla Spotify Web API | **Da rivedere**: nessuna chiave Spotify è richiesta per avviare, ma esiste ancora un'anteprima ADMIN opzionale che la usa |
-| Test per le funzioni future (Apple live, scheduler, Ollama, Maps) | Maps e gli eventi hanno test simulati. Apple live, scheduler e Ollama restano da implementare e testare. Registrazione, sessione browser e rate limit hanno già test; il flusso browser è stato verificato sul Compose di test. |
+| Test per le funzioni future (Apple live, scheduler, Ollama, Maps) | Ticketmaster dispone di test della fonte simulata, scheduler e integrazione DB. Apple live e Ollama restano da implementare. Maps e sessione browser hanno verifiche dedicate. |
 
 ## Prerequisiti
 
@@ -235,8 +235,8 @@ Nessun valore è riportato qui. Gli esempi sono `.env.example` e `.env.test.exam
 
 | Variabile | A cosa serve oggi |
 |---|---|
-| `TICKETMASTER_API_KEY` | import eventi Ticketmaster **manuale** ereditato dal backend originale. Chiave gratuita dal portale sviluppatori Ticketmaster. Senza chiave il resto dell'app funziona. |
-| `GOOGLE_GEOCODING_API_KEY` | fallback di geocodifica dell'import quando Ticketmaster non dà coordinate valide. Chiave **server**, separata da quella del browser, ristretta alla sola Geocoding API. |
+| `TICKETMASTER_API_KEY` | Discovery API, solo backend/worker. Senza chiave il worker resta inattivo e il catalogo persistito rimane utilizzabile. Non usare il prefisso `VITE_`. |
+| `GOOGLE_GEOCODING_API_KEY` | Solo il vecchio modulo di import usa questo fallback. Il nuovo worker non chiama Google: eventi senza coordinate entrano nella coda ADMIN. |
 | `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | solo l'anteprima ADMIN Spotify (`/api/admin/spotify/anteprima`). Senza queste chiavi quella route risponde 503 e il resto funziona. **Non servono per avviare o usare il progetto.** |
 | `RATE_LIMIT_REGISTRAZIONE_MAX`, `RATE_LIMIT_REGISTRAZIONE_FINESTRA_SEC` | soglie del rate limit della registrazione. **Valori normali: 30 richieste per IP ogni 900 secondi.** |
 | `RATE_LIMIT_LOGIN_COPPIA_MAX`, `RATE_LIMIT_LOGIN_IP_FALLIMENTI_MAX`, `RATE_LIMIT_LOGIN_IP_TOTALE_MAX`, `RATE_LIMIT_LOGIN_FINESTRA_SEC` | soglie del rate limit del login. **Valori normali: 10 fallimenti per IP+email, 50 fallimenti per IP, 100 tentativi totali per IP, finestra 900 secondi.** |
@@ -336,7 +336,7 @@ Panoramica **non esaustiva** delle famiglie di route (dettaglio in `backend/src/
 | Deezer | `/deezer/scopri` | autenticato |
 | ADMIN | `/admin/eventi` (coda di revisione), `/admin/spotify/anteprima`, `/admin/deezer/anteprima` | ADMIN |
 
-Non esistono ancora le route di ricerca Apple live, sincronizzazione Ticketmaster automatica né revisione AI. Registrazione e sessione browser sono verificate nello stack di test; il login web usa `/api/auth/web/login`, mentre il contratto bearer resta separato.
+Non esistono ancora le route di ricerca Apple live né revisione AI. La sincronizzazione Ticketmaster usa un job backend, senza endpoint pubblico che avvii importazioni. Registrazione e sessione browser sono verificate nello stack di test; il login web usa `/api/auth/web/login`, mentre il contratto bearer resta separato.
 
 ### Registrazione di un nuovo utente
 
@@ -458,6 +458,73 @@ Descrizione basata sulla lettura di `backend/src/servizi/deezer.js` e delle due 
 
 `frontend/` contiene il primo incremento del frontend (Vite + React + TypeScript, CSS Modules). Istruzioni, scelte e contratti API usati sono in [frontend/README.md](frontend/README.md).
 
+## Sincronizzazione Ticketmaster
+
+Il job interroga la [Discovery API ufficiale](https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/) soltanto per artisti già nella tabella `artista`. Un `id_ticketmaster` confermato dall'ADMIN viene riutilizzato senza ricerca per nome. Altrimenti una corrispondenza di nome esatto e non ambiguo crea un candidato **in coda**: non conferma automaticamente l'identità. Risultati esterni Apple, nuovi artisti e chiamate AI non entrano in questo flusso.
+
+Compose avvia `ticketmaster-schema` prima del backend/worker e `ticketmaster-sync` come servizio autonomo con riavvio automatico. Lo schema `backend/db/init/13_ticketmaster_sync_schema.sql` aggiunge soltanto tre tabelle: snapshot della fonte, progressi per artista e stato globale. I volumi nuovi lo ricevono dall'inizializzazione MySQL; sui volumi esistenti il servizio applica lo stesso DDL idempotente. **Prima del primo avvio su un DB già in uso: backup, lettura del DDL e conferma dell'operatore.** Non rimuovere volumi, non rieseguire seed normali e non applicare il Compose normale per provare il DB test.
+
+Backup del solo DB test, senza stampare credenziali (il dump contiene dati privati: conservarlo fuori dal repository):
+
+```sh
+umask 077
+docker compose --env-file .env.test -f docker-compose.test.yml -p waveset-test exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysqldump -u"$MYSQL_USER" --single-transaction --no-tablespaces waveset_test' > /private/tmp/waveset-test-prima-ticketmaster.sql
+```
+
+Dopo aver approvato il DDL, dall'origine del repository:
+
+```sh
+docker compose --env-file .env.test -f docker-compose.test.yml -p waveset-test build backend frontend
+# Volume già popolato: migrazione esplicita, poi servizi senza rieseguire seed.
+docker compose --env-file .env.test -f docker-compose.test.yml -p waveset-test run --rm --no-deps ticketmaster-schema
+docker compose --env-file .env.test -f docker-compose.test.yml -p waveset-test up -d --no-deps backend frontend ticketmaster-sync
+# Comando manuale: --force salta cache/backoff, ma conserva lock e budget.
+docker compose --env-file .env.test -f docker-compose.test.yml -p waveset-test exec -T backend npm run eventi:sync -- --artisti=5,6 --force
+docker compose --env-file .env.test -f docker-compose.test.yml -p waveset-test logs --tail=20 ticketmaster-sync
+```
+
+`--artisti` accetta esclusivamente ID locali; scegliere quelli effettivamente presenti. Senza selezione il comando visita il catalogo locale. Per lo stack normale usare `.env` e `docker-compose.yml`. In sviluppo sull'host: configurare DB e chiave nel solo ambiente backend, poi `npm run eventi:scheduler` oppure `npm run eventi:sync -- --artisti=5 --force` in `backend/`. Lo script ereditato `scripts/importaTicketmaster.js` è un alias del nuovo comando, con le medesime protezioni. Il comando manuale restituisce exit code 1 per chiave assente, errore o artisti falliti; un lotto intenzionalmente limitato è segnalato `parziale`.
+
+| Configurazione backend | Default / strategia |
+|---|---|
+| `TICKETMASTER_SYNC_ENABLED` | `true`; `false` disattiva il job |
+| `TICKETMASTER_SYNC_INTERVAL_SEC` | `28800` (8 ore), cache persistente per artista |
+| `TICKETMASTER_SYNC_STALE_SEC` | `86400` (24 ore), soglia per l'avviso UI |
+| `TICKETMASTER_SYNC_MAX_ARTISTS` | `50` per ciclo; i successivi vengono ripresi al tick seguente |
+| `TICKETMASTER_SYNC_MAX_PAGES` | `4` pagine da 50, massimo configurabile 20 |
+| `TICKETMASTER_SYNC_MAX_REQUESTS` | `300`, comprese pagine, dettagli e retry |
+| `TICKETMASTER_SYNC_TIMEOUT_MS` | `10000` per richiesta |
+
+Il worker controlla le scadenze ogni minuto e al suo avvio; non interroga Ticketmaster finché cache/backoff persistenti non scadono. Non ci sono chiamate alla fonte per ogni visita utente. Richieste sequenziali distanziate di almeno 300 ms, due retry per timeout/429/5xx con attesa esponenziale; `Retry-After` numerico o HTTP-date rispettato fino a 24 ore. Errori persistenti hanno backoff da 15 minuti fino all'intervallo configurato; 401/403, 429 definitivo e budget esaurito interrompono il lotto. Paginazione troncata è un esito parziale, non un catalogo completo. I limiti applicativi non garantiscono il rispetto di quote condivise con altri programmi: dimensionare il budget sul proprio account.
+
+CLI, worker e repliche prendono il medesimo `GET_LOCK(<database>:ticketmaster-sync,0)` sulla connessione usata per le scritture. Un secondo esecutore restituisce `occupato`. Il lock viene rilasciato anche su errore/disconnessione; timer sequenziali evitano sovrapposizioni nello stesso processo. I log riportano soltanto codici controllati e contatori, mai URL con `apikey`, corpi remoti grezzi o valori env.
+
+La chiave unica `(fonte,id_esterno)` impedisce duplicati; inserimento evento/lineup/snapshot è transazionale. Date/orari locali vengono conservati, coordinate normalizzate senza geocodifica esterna. I campi della fonte restano nel suo snapshot. Campi pubblicati vengono aggiornati soltanto per eventi creati dal nuovo job e ancora identici all'ultima versione applicata, con lineup invariata. PATCH/approvazione/scarto ADMIN proteggono la riga atomicamente; modifiche SQL o collegamenti diversi vengono rilevati. Import legacy senza snapshot sono protetti per prudenza. Il job non riscrive `artista.id_ticketmaster`, lineup confermata, approvazioni o scarti. Nuove identità candidate, coordinate mancanti, date incerte e possibili doppioni entrano in coda; non vengono promossi ai cicli successivi. Nuovi eventi senza una data locale valida non vengono inseriti: lo schema richiede una data e il job non ne inventa una. Per eventi esistenti conserva i campi curati e registra lo snapshot incompleto.
+
+Uno stato fonte `canceled` nasconde l'evento dalle query pubbliche, mantenendo la decisione ADMIN e la riga per revisione. `postponed` e `rescheduled` vengono segnalati in UI. Un evento non più nei risultati viene verificato con la route di dettaglio: soltanto un 404 registra `assente_dal`, senza cancellarlo o inventare un annullamento. Una ricerca incompleta o errore non segnala assenze. Errori della fonte conservano tutti i dati persistiti.
+
+API additive:
+
+- `GET /api/eventi/sincronizzazione`: pubblico, `no-store`; `{configurata,attiva,ultimo_tentativo,ultimo_successo,dati_vecchi,errore_temporaneo,parziale,intervallo_secondi}`. L'ultimo successo globale rappresenta un controllo completo; un comando limitato non lo rinnova.
+- `GET /api/admin/eventi/:id/fonte`: solo ADMIN; snapshot normalizzato, protezione, stato e timestamp della fonte, anche per eventi approvati/scartati.
+- Lista e dettaglio conservano il contratto originale, con soli campi facoltativi aggiunti agli eventi Ticketmaster: `fonte`, `stato_fonte`, `ultimo_controllo`, `assente_fonte`, `modifiche_fonte`.
+
+Esempio **sintetico** della struttura Discovery, senza chiavi:
+
+```json
+{"_embedded":{"events":[{"id":"evento-esempio","name":"Concerto","dates":{"start":{"localDate":"2027-05-02","localTime":"21:00:00"},"status":{"code":"onsale"}},"_embedded":{"attractions":[{"id":"attrazione-esempio","name":"Artista locale"}],"venues":[{"name":"Club","city":{"name":"Milano"},"location":{"latitude":"45","longitude":"9"}}]}}]},"page":{"number":0,"totalPages":1}}
+```
+
+Test da `backend/`:
+
+```sh
+node --test test/ticketmasterSyncSenzaDb.test.js
+# Fermare il worker prima del test DB; solo waveset_test già migrato.
+node --env-file=../.env.test --test test/ticketmasterSyncPersistenza.test.js
+```
+
+La seconda prova usa MySQL reale, risposte Ticketmaster controllate, un solo artista temporaneo e relativi eventi. Non crea utenti/sessioni/follow, non cambia seed o artisti esistenti; elimina esclusivamente gli ID temporanei e verifica lo stato globale in una transazione annullata. Il test non equivale a una prova Discovery con chiave reale. Senza `TICKETMASTER_API_KEY` configurata la verifica live resta da eseguire con un lotto limitato, ripetendo il comando e confrontando ID, collegamenti e numero di righe.
+
 ## Limiti noti
 
 Cose **non verificate** o con difetti noti:
@@ -467,7 +534,7 @@ Cose **non verificate** o con difetti noti:
 - **Guardia SQL del seed di test:** verificata su un container MySQL 8.4 temporaneo (fallisce prima di scrivere se il DB non è `waveset_test` o se non c'è un DB selezionato). Non è coperta dalla suite automatica.
 - **Login dell'ADMIN via API non provato** nell'ambiente normale; `npm test` non è mai eseguito sul DB normale.
 - **`/health` espone il messaggio d'errore del database. Non corretto.** Quando il database non è raggiungibile, `GET /health` risponde 503 e include nel corpo il testo dell'errore del driver (`backend/src/routes/salute.js`). È un dettaglio interno che non dovrebbe essere esposto: è un limite noto e **ancora da sistemare**, non risolto.
-- **Import Ticketmaster manuale** e script di importazione del catalogo reale: ereditati, non provati in questa sessione e non collegati a nessuno scheduler.
+- **Ticketmaster reale:** la prova con Discovery API richiede `TICKETMASTER_API_KEY` locale. I test con risposte controllate non dimostrano copertura o disponibilità della fonte reale. Il vecchio modulo di import resta per compatibilità con test e script di manutenzione; la CLI di import usa ora il job protetto.
 - **Stack normale non ricostruito:** l'immagine del backend normale in esecuzione è quella precedente alla registrazione: `POST /api/auth/registrazione` esiste solo nel backend di test finché non si riesegue `docker compose up -d --build` sullo stack normale (operazione non ancora fatta né verificata).
 - **Rate limit in memoria (registrazione e login) e enumerazione delle email via `409`:** vedi [Registrazione](#registrazione-di-un-nuovo-utente) e [Rate limit del login](#rate-limit-del-login-bearer). I contatori si azzerano al riavvio e non sono condivisi tra repliche; `trust proxy` è disattivato, quindi dietro un reverse proxy serve una configurazione esplicita non ancora fatta prima di esporre il backend in rete.
 - **Sessione browser verificata nel solo Compose di test**, oltre alla precedente prova locale. Un cookie revocato altrove non viene cancellato dal backend su 401 e può causare 403 alla registrazione. Il normale non è stato ricostruito o modificato.
@@ -478,16 +545,16 @@ Cose **non verificate** o con difetti noti:
 
 ## Funzionalità future e riferimenti
 
-Funzionalità previste (vedi [Da implementare](#da-implementare)): ricerca Apple live e promozione controllata nel catalogo, tendenze Apple, scheduler Ticketmaster con un solo esecutore, revisione ADMIN assistita da Ollama locale. Google Maps con quattro layer è implementata nel frontend e attende prova reale con configurazione Google.
+Funzionalità previste (vedi [Da implementare](#da-implementare)): ricerca Apple live e promozione controllata nel catalogo, tendenze Apple, revisione ADMIN assistita da Ollama locale. Lo scheduler Ticketmaster e Google Maps con quattro layer sono implementati.
 
-Riferimenti da consultare. **Tutti gli indirizzi qui sotto sono da verificare:** li ho scritti a memoria, non li ho aperti né confrontati con le fonti ufficiali in questa sessione, quindi non vanno considerati fonti ufficiali confermate finché non li controlli tu (e le condizioni d'uso e i limiti di ogni servizio vanno letti alla fonte prima di usarlo).
+Riferimenti da consultare. La documentazione Discovery API è stata consultata per paginazione, stati e limiti. Gli altri indirizzi restano da verificare; consultare le condizioni e i limiti del proprio account prima dell'uso.
 
 | Argomento | Indirizzo | Stato |
 |---|---|---|
 | Docker Compose | https://docs.docker.com/compose/ | da verificare |
 | Immagine MySQL | https://hub.docker.com/_/mysql | da verificare |
 | iTunes Search API | https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/ | da verificare |
-| Ticketmaster Discovery API | https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/ | da verificare |
+| Ticketmaster Discovery API | https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/ | consultata per questo incremento |
 | Google Maps JavaScript API | https://developers.google.com/maps/documentation/javascript | da verificare |
 | Ollama | https://ollama.com/ | da verificare |
 | Node.js: `--env-file` e test runner | https://nodejs.org/api/test.html | da verificare |

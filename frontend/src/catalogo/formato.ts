@@ -8,6 +8,9 @@ export function erroreCatalogo(causa: unknown): string {
         : testoMessaggio(messaggioGenerico(causa));
 }
 
+export function dataControllo(iso: string): string {
+    return new Intl.DateTimeFormat(locale(), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
+}
 export function dataCatalogo(data: string | null): string {
     if (data === null) return t('catalog.dateUnavailable');
     return new Intl.DateTimeFormat(locale(), { dateStyle: 'long', timeZone: 'UTC' }).format(

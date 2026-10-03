@@ -234,3 +234,13 @@ node --env-file=../.env.test --test test/followPersistenza.test.js
 Il secondo test usa la fixture **Test B già esistente**, si ferma se ha follow iniziali, prova login, follow duplicato, persistenza SQL, filtro con un artista secondario e unfollow idempotente. La canarina esistente verifica che API e connessione SQL usino lo stesso DB. Il test elimina soltanto i follow e le sessioni temporanei creati dalla prova e verifica il ripristino dei follow iniziali; non crea utenti o eventi.
 
 In questo incremento: **247 test frontend**, **8 test HTTP follow in memoria**, **1 test HTTP/DB persistente**, lint, TypeScript e build host/Docker PASS. Chrome reale su `localhost:5174`, desktop e mobile, ha verificato login Test B, follow/unfollow via tastiera/tap, persistenza e refresh, filtro vuoto/non vuoto, Google Maps reale, sincronizzazione lista/marker, click/tap al dettaglio e ritorno col filtro, deduplica e testi IT/EN. Nessuna risposta API simulata in questa prova Chrome. Follow e sessioni preesistenti conservati; temporanei ripuliti. La prova non modifica il DB normale, schema, seed, catalogo o configurazione Google e non ripete l'avvio da clone/volume vuoto. Script e screenshot diagnostici sono fuori dal repository, in `/private/tmp/waveset-follow-reale/`.
+
+## Aggiornamento eventi Ticketmaster
+
+`AggiornamentoEventi.tsx` legge `GET /api/eventi/sincronizzazione` all'apertura di Eventi e ogni cinque minuti, senza interrogare Ticketmaster dal browser. Mostra l'ultimo controllo completo, configurazione assente/disabilitata, errori temporanei, aggiornamento parziale e dati vecchi. In caso di errore della fonte o dei metadati la lista resta utilizzabile. `InformazioniEvento.tsx` mostra anche stato, controllo e avvisi dei singoli eventi Ticketmaster, nella lista e nel dettaglio. Filtri, Maps, sessione e navigazione restano indipendenti dai metadati.
+
+Le nuove chiavi IT/EN sono nei dizionari esistenti, ad esempio `sync.lastUpdate`, `sync.stale`, `sync.missing`. Il cambio lingua aggiorna testi/date senza ricaricare lista o fare nuove chiamate alla fonte. Nessuna chiave Ticketmaster nel bundle o nella configurazione Vite.
+
+La logica backend, lo scheduler e il comando manuale sono documentati nella [sezione Ticketmaster del README principale](../README.md#sincronizzazione-ticketmaster). Nessun evento viene presentato come aggiornato in tempo reale; la copertura dipende dalla fonte.
+
+Regressioni: `AggiornamentoEventi.test.tsx` verifica metadati, stantio/errore, lista ancora disponibile, IT/EN, dettaglio/ritorno con filtro e validazione del contratto. I test frontend usano HTTP simulato; non costituiscono una prova della Discovery API reale.

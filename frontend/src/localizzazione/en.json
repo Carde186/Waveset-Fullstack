@@ -251,5 +251,18 @@
     "follow.expired": "Your session has expired. Log in to follow artists.",
     "follow.denied": "This action is not allowed. Reload the page and try again.",
     "follow.missing": "This artist is no longer available.",
-    "follow.error": "Unable to update the follow. Try again."
+    "follow.error": "Unable to update the follow. Try again.",
+    "sync.statusUnavailable": "Unable to check the last update. Saved data remains available.",
+    "sync.notConfigured": "Ticketmaster updates are not configured. Available local data is shown.",
+    "sync.disabled": "Automatic Ticketmaster updates are disabled.",
+    "sync.lastUpdate": "Last complete update from Ticketmaster:",
+    "sync.notYetUpdated": "Ticketmaster synchronization has not yet completed an update.",
+    "sync.error": "Ticketmaster is temporarily unavailable. The latest saved data is shown.",
+    "sync.partial": "Partial update: some artists or pages have not yet been checked.",
+    "sync.stale": "The data may be outdated. Check the event details with the source.",
+    "sync.eventSource": "Ticketmaster source. Last checked:",
+    "sync.postponed": "Ticketmaster reports this event as postponed.",
+    "sync.rescheduled": "Ticketmaster reports this event as rescheduled.",
+    "sync.changes": "The source reports changes to the curated data. A review is required.",
+    "sync.missing": "This event is no longer present in the source. The latest data is retained; absence does not confirm cancellation."
 }
