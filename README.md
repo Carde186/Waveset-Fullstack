@@ -331,7 +331,7 @@ Panoramica **non esaustiva** delle famiglie di route (dettaglio in `backend/src/
 | Link esterni | `/album/:id/link-spotify`, `/brani/:id/link-apple`, `/album/:id/copertina-itunes` | pubblico |
 | Eventi e novità | `GET /eventi?filtro=tutti`, `GET /eventi?filtro=seguiti`, `GET /eventi/:id`, `/novita` | Eventi tutti e dettaglio pubblici; seguiti richiede una sessione valida (401), filtro non valido 400, ID assente/non pubblicato 404. |
 | Account | `/auth/login` (bearer, app Android), `/auth/web/login` (browser, richiede la sessione web configurata), `/auth/io`, `/auth/logout`, `/auth/logout-tutti` (bearer o cookie) | login pubblici; gli altri richiedono una sessione |
-| Follow | `/artisti/:id/segui` | autenticato |
+| Follow | `PUT /artisti/:id/segui`, `DELETE /artisti/:id/segui` | solo USER; idempotenti, successo 204; stato `seguito` nel dettaglio artista |
 | Playlist | `/playlist` | autenticato, per utente |
 | Deezer | `/deezer/scopri` | autenticato |
 | ADMIN | `/admin/eventi` (coda di revisione), `/admin/spotify/anteprima`, `/admin/deezer/anteprima` | ADMIN |

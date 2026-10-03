@@ -56,7 +56,7 @@ export function leggiCsrf(): string | null {
 const METODI_SICURI = new Set(['GET', 'HEAD']);
 
 interface OpzioniRichiesta {
-    metodo?: 'GET' | 'POST' | 'PATCH';
+    metodo?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
     corpo?: unknown;
     // Le richieste non sicure portano X-CSRF-Token (se in memoria). Il login e la
     // registrazione non lo usano: prima non esiste ancora una sessione.

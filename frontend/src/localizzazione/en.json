@@ -242,5 +242,14 @@
     "account.server": "Your account could not be updated. Try again later.",
     "account.userOnly": "Settings are available for USER accounts.",
     "common.info": "Info",
-    "common.done": "Done"
+    "common.done": "Done",
+    "follow.follow": "Follow artist",
+    "follow.unfollow": "Unfollow artist",
+    "follow.following": "You follow this artist.",
+    "follow.notFollowing": "You do not follow this artist.",
+    "follow.pending": "Updating…",
+    "follow.expired": "Your session has expired. Log in to follow artists.",
+    "follow.denied": "This action is not allowed. Reload the page and try again.",
+    "follow.missing": "This artist is no longer available.",
+    "follow.error": "Unable to update the follow. Try again."
 }

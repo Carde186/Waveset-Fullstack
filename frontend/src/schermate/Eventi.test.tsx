@@ -135,6 +135,7 @@ test('ospite su seguiti: accesso richiesto, nessuna richiesta eventi', async () 
     const backend = simulaBackend({ 'GET /api/auth/io': SESSIONE_NON_VALIDA() });
     renderizzaApp('/eventi?filtro=seguiti');
     expect(await screen.findByRole('heading', { name: 'Gli eventi dei tuoi artisti.' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Artisti che seguo' })).toBeDisabled();
     expect(backend.chiamate.map((c) => c.percorso)).toEqual(['/api/auth/io']);
 });
 

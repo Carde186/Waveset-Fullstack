@@ -204,3 +204,33 @@ I testi applicativi della mappa e i titoli dei marker cambiano senza ricreare la
 - `node --test test/accountSenzaDb.test.js` dalla cartella backend verifica gli endpoint HTTP reali, bcrypt, nuove credenziali al login, CSRF, ruoli, errori e concorrenza con persistenza/sessioni esclusivamente in memoria.
 - I test frontend coprono i form, i messaggi già visibili al cambio lingua, la persistenza, i dizionari, l'assenza di testi statici JSX e la regressione dei marker durante il cambio lingua.
 - La prova Chrome sul frontend test usa risposte account/autenticazione simulate e verifica UI desktop/mobile, cambio lingua, refresh e login con credenziali aggiornate. Non prova un cambio credenziali sul MySQL reale e non crea utenti o sessioni nel DB.
+
+## Follow artisti e filtro eventi persistente
+
+Nel dettaglio di un artista locale, un USER autenticato vede lo stato **Segui questo artista / Non segui questo artista** e il pulsante **Segui artista / Smetti di seguire**, con equivalenti EN. L'identità viene risolta prima di caricare il dettaglio personale. Il valore iniziale arriva dal campo `seguito` di `GET /api/artisti/:id`; dopo la mutazione riuscita lo stato si aggiorna immediatamente. Durante la richiesta il pulsante è disabilitato; doppio click non produce richieste concorrenti. Un errore conserva lo stato precedente e mostra un messaggio controllato, tradotto anche se già visibile. Al refresh lo stato viene riletto dal server. Ospiti e ADMIN non hanno il pulsante.
+
+Si riutilizzano i contratti esistenti, senza nuovi endpoint:
+
+| Chiamata | Contratto |
+|---|---|
+| `PUT /api/artisti/:id/segui` | USER, idempotente; successo 204 senza corpo, artista inesistente 404 |
+| `DELETE /api/artisti/:id/segui` | USER, idempotente; successo 204 anche se il follow non esiste |
+| `GET /api/artisti/:id` | JSON del dettaglio esistente con `seguito: true/false`, `Cache-Control: no-store` |
+
+Le mutazioni richiedono la sessione; nel browser si usano cookie HttpOnly e CSRF/origine esistenti. ID non valido: 400; ospite: 401; ADMIN o CSRF/origine non validi: 403; guasto DB: 500 `{ "messaggio": "Errore interno del server" }`. Il client non invia ID utente né ruolo: il server usa l'identità della sessione. Nessuna modifica al contratto bearer. La chiave primaria `(utente_id, artista_id)` di `utente_artista` impedisce duplicati; nessuna migrazione o modifica ai seed.
+
+`GET /api/eventi?filtro=seguiti` usa già un `EXISTS` sulla lineup e sui follow dell'utente corrente: basta che sia seguito **un qualsiasi artista della lineup**, anche secondario. Un evento compare una sola volta anche quando sono seguiti più artisti della stessa lineup. Il frontend usa la stessa risposta per lista e marker; con zero risultati mostra il messaggio dedicato e nessun marker. I link al dettaglio evento e il ritorno mantengono `?filtro=seguiti`. Da ospite il filtro non è mostrato sulla lista pubblica; su un URL diretto `?filtro=seguiti` è disabilitato e compare l'invito ad accedere.
+
+### Test e verifica reale del follow
+
+```bash
+# Dalla cartella backend: HTTP reale con persistenza in memoria, senza DB.
+node --test test/followSenzaDb.test.js
+
+# Solo con backend Compose test in esecuzione e .env.test configurato.
+node --env-file=../.env.test --test test/followPersistenza.test.js
+```
+
+Il secondo test usa la fixture **Test B già esistente**, si ferma se ha follow iniziali, prova login, follow duplicato, persistenza SQL, filtro con un artista secondario e unfollow idempotente. La canarina esistente verifica che API e connessione SQL usino lo stesso DB. Il test elimina soltanto i follow e le sessioni temporanei creati dalla prova e verifica il ripristino dei follow iniziali; non crea utenti o eventi.
+
+In questo incremento: **247 test frontend**, **8 test HTTP follow in memoria**, **1 test HTTP/DB persistente**, lint, TypeScript e build host/Docker PASS. Chrome reale su `localhost:5174`, desktop e mobile, ha verificato login Test B, follow/unfollow via tastiera/tap, persistenza e refresh, filtro vuoto/non vuoto, Google Maps reale, sincronizzazione lista/marker, click/tap al dettaglio e ritorno col filtro, deduplica e testi IT/EN. Nessuna risposta API simulata in questa prova Chrome. Follow e sessioni preesistenti conservati; temporanei ripuliti. La prova non modifica il DB normale, schema, seed, catalogo o configurazione Google e non ripete l'avvio da clone/volume vuoto. Script e screenshot diagnostici sono fuori dal repository, in `/private/tmp/waveset-follow-reale/`.

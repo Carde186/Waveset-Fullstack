@@ -32,6 +32,53 @@ Email validata e univoca, password hashata con algoritmo adeguato, niente passwo
 
 Rimuovi gli USER predefiniti dai **seed versionati**; non cancellare account, playlist, follow o sessioni nel DB di sviluppo senza anteprima e conferma. Testa registrazione, duplicati, divieto di autoassegnarsi ADMIN, login/logout, route ADMIN e isolamento dei dati fra utenti.
 
+## Account utente: cambio email, cambio password e localizzazione IT/EN
+
+### Cambio email e cambio password
+
+Un utente registrato (ruolo USER) deve poter gestire il proprio account in modo autonomo e sicuro:
+
+- **Cambio email**:
+  - l’utente può richiedere la modifica della propria email da una pagina di impostazioni account;
+  - la nuova email deve essere validata (formato) e verificata come univoca nel DB;
+  - il cambio email deve prevedere una conferma esplicita (es. nuova password corrente + nuova email);
+  - se il backend supporta verifica email (token, flag), integrare il flusso in modo coerente;
+  - in caso di errore (email già esistente, formato non valido, errore server), mostrare messaggi chiari e non rivelare dettagli interni.
+
+- **Cambio password**:
+  - l’utente può cambiare la propria password da una pagina di impostazioni account;
+  - il flusso richiede: password corrente, nuova password, conferma nuova password;
+  - validare la nuova password (lunghezza minima, complessità ragionevole);
+  - la password non deve mai apparire in chiaro nei log o nel frontend;
+  - in caso di errore (password corrente errata, nuova password non valida, errore server), mostrare messaggi chiari e generici dove opportuno.
+
+- Test minimi:
+  - cambio email con dati validi, email duplicata, formato non valido, errore server;
+  - cambio password con password corrente errata, nuova password non valida, successo;
+  - isolamento tra utenti: un utente non può modificare dati di un altro account;
+  - sessioni: dopo cambio email/password, le sessioni esistenti restano valide a meno di decisione esplicita (documentare la scelta).
+
+Queste funzioni non devono permettere a un USER di modificare il proprio ruolo o di accedere a route ADMIN.
+
+### Localizzazione IT/EN
+
+Il frontend deve supportare almeno due lingue: **italiano (IT)** e **inglese (EN)**.
+
+- Tutti i testi visibili all’utente (menu, etichette, messaggi di errore, titoli, pulsanti, placeholder) devono essere esternalizzati in file di traduzione (es. `it.json`, `en.json`).
+- Il backend può rimanere in una sola lingua (es. messaggi di errore tecnici in inglese); il frontend si occupa della localizzazione.
+- L’utente deve poter:
+  - selezionare la lingua preferita (IT/EN) da un selettore visibile;
+  - avere la lingua memorizzata (localStorage o cookie) e ripristinata alle visite successive;
+  - navigare il sito nella lingua scelta senza ricaricamenti innecessari.
+- La lingua non deve influenzare la logica di business (API, ruoli, sessioni, ID, ecc.), solo i testi.
+- Test minimi:
+  - cambio lingua con selettore e verifica che tutti i testi principali cambino;
+  - persistenza della lingua dopo refresh;
+  - assenza di testi “hardcoded” in italiano o inglese nel codice frontend (a parte chiavi di traduzione).
+
+Non è richiesta una localizzazione automatica basata su browser o IP: la scelta è manuale e persistente.
+
+
 ## Catalogo dinamico: due livelli
 
 **Non limitare Esplora ai pochi artisti salvati nel DB locale.** Il nuovo frontend web deve offrire più musica tramite la ricerca pubblica Apple, mantenendo chiaro cosa è una scoperta esterna e cosa fa parte del catalogo persistente Waveset.

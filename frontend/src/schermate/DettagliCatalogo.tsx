@@ -10,6 +10,8 @@ import {
     leggiLinkSpotify,
 } from '../api/catalogo';
 import { ErroreApi } from '../api/client';
+import { useAutenticazione } from '../autenticazione/contesto';
+import { FollowArtista } from '../componenti/FollowArtista';
 import { dataCatalogo, erroreCatalogo } from '../catalogo/formato';
 import { useRisorsa } from '../catalogo/useRisorsa';
 import { Avviso } from '../componenti/Avviso';
@@ -30,11 +32,13 @@ function PaginaDettaglio<T>({
 }) {
     const { id: parametro } = useParams();
     const id = idDaPercorso(parametro);
+    const { stato: sessione } = useAutenticazione();
+    const identita = tipo === 'artista' ? (sessione.tipo === 'autenticato' ? sessione.utente.id : sessione.tipo) : '';
     const richiesta = useCallback(
         () => (id === null ? Promise.reject(new ErroreApi(404)) : carica(id)),
         [id, carica],
     );
-    const { stato, riprova } = useRisorsa(`${tipo}:${parametro}`, richiesta);
+    const { stato, riprova } = useRisorsa(`${tipo}:${parametro}:${identita}`, richiesta);
     if (stato.tipo === 'caricamento') return <StatoCaricamento testo={t('text.loadingDetails')} />;
     if (stato.tipo === 'errore') {
         if (stato.causa instanceof ErroreApi && stato.causa.stato === 404)
@@ -97,6 +101,10 @@ function LinkMappato({
 }
 
 export function DettaglioArtista() {
+    const { stato } = useAutenticazione();
+    // Il flag seguito è personale: attendere l'identità evita un primo
+    // caricamento anonimo seguito da una seconda richiesta autenticata.
+    if (stato.tipo === 'caricamento') return <StatoCaricamento testo={t('text.checkingYourSession')} />;
     return (
         <PaginaDettaglio tipo="artista" carica={leggiArtista}>
             {(artista) => (
@@ -110,7 +118,7 @@ export function DettaglioArtista() {
                                 <span key={g.id}>{g.nome}</span>
                             ))}
                         </div>
-                        {artista.seguito ? <p>{t('text.artistYouFollow')}</p> : null}
+                        <FollowArtista key={artista.id} artista={artista} />
                     </Vetrina>
                     {artista.immagineUrl && artista.creditoImmagine ? (
                         <figure className={stile.immagineDettaglio}>

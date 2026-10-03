@@ -249,6 +249,11 @@ export const leggiArtista = (n: number) => dettaglio('/artisti', n, artista);
 export const leggiBrano = (n: number) => dettaglio('/brani', n, brano);
 export const leggiAlbum = (n: number) => dettaglio('/album', n, album);
 
+export async function impostaFollowArtista(n: number, seguito: boolean): Promise<void> {
+    verificaId(n);
+    await richiesta(`/artisti/${n}/segui`, { metodo: seguito ? 'PUT' : 'DELETE' });
+}
+
 // Mappature locali esistenti: nessuna ricerca esterna o copertina iTunes live.
 async function link(
     n: number,

@@ -242,5 +242,14 @@
     "account.server": "Non è possibile aggiornare l'account. Riprova più tardi.",
     "account.userOnly": "Le impostazioni sono disponibili per gli account USER.",
     "common.info": "Info",
-    "common.done": "Fatto"
+    "common.done": "Fatto",
+    "follow.follow": "Segui artista",
+    "follow.unfollow": "Smetti di seguire",
+    "follow.following": "Segui questo artista.",
+    "follow.notFollowing": "Non segui questo artista.",
+    "follow.pending": "Aggiornamento…",
+    "follow.expired": "La sessione è scaduta. Accedi per seguire gli artisti.",
+    "follow.denied": "Operazione non consentita. Ricarica la pagina e riprova.",
+    "follow.missing": "Questo artista non è più disponibile.",
+    "follow.error": "Non è possibile aggiornare il follow. Riprova."
 }

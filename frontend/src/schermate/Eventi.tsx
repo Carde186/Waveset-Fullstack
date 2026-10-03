@@ -78,7 +78,7 @@ export function Eventi() {
         <Vetrina><div className="occhiello">{t('text.eventsLocalCatalog')}</div><h1 className="titolo">{t('text.seeYouByTheSpeakers')}</h1><p>{t('text.discoverUpcomingLiveShowsAndArtists')}</p></Vetrina>
         <div className={stile.filtri} role="group" aria-label={t('text.filterEvents')}>
             <Bottone variante={filtro === 'tutti' ? 'primario' : 'contorno'} aria-pressed={filtro === 'tutti'} onClick={() => cambia('tutti')}>{t('text.all')}</Bottone>
-            {stato.tipo === 'autenticato' || filtro === 'seguiti' ? <Bottone variante={filtro === 'seguiti' ? 'primario' : 'contorno'} aria-pressed={filtro === 'seguiti'} onClick={() => cambia('seguiti')}>{t('text.artistsIFollow')}</Bottone> : null}
+            {stato.tipo === 'autenticato' || filtro === 'seguiti' ? <Bottone disabled={stato.tipo !== 'autenticato'} variante={filtro === 'seguiti' ? 'primario' : 'contorno'} aria-pressed={filtro === 'seguiti'} onClick={() => cambia('seguiti')}>{t('text.artistsIFollow')}</Bottone> : null}
         </div>
         {!valido ? <StatoErrore titolo={t('text.invalidFilter')} messaggio={t('text.chooseAllOrArtistsIFollow')} livelloTitolo={2} />
             : filtro === 'seguiti' && stato.tipo === 'caricamento' ? <StatoCaricamento testo={t('text.checkingYourSession')} livelloTitolo={2} />

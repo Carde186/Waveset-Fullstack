@@ -2,6 +2,7 @@ const express = require('express');
 
 const autenticazioneFacoltativa = require('../autenticazione/autenticazioneFacoltativa');
 const richiediAutenticazione = require('../autenticazione/richiediAutenticazione');
+const richiediRuolo = require('../autenticazione/richiediRuolo');
 const pool = require('../config/database');
 
 const router = express.Router();
@@ -46,6 +47,7 @@ async function elencaArtisti(req, res) {
 }
 
 async function dettaglioArtista(req, res) {
+    res.set('Cache-Control', 'no-store');
     const { id } = req.params;
 
     const [righeArtista] = await pool.query(
@@ -148,31 +150,49 @@ async function esisteArtista(id) {
 async function seguiArtista(req, res) {
     const { id } = req.params;
 
-    if (!(await esisteArtista(id))) {
-        res.status(404).json({ messaggio: 'Artista non trovato' });
-        return;
+    try {
+        if (!(await esisteArtista(id))) {
+            res.status(404).json({ messaggio: 'Artista non trovato' });
+            return;
+        }
+
+        await pool.query(
+            'INSERT IGNORE INTO utente_artista (utente_id, artista_id) VALUES (?, ?)',
+            [req.utente.id, id],
+        );
+
+        res.status(204).end();
+    } catch {
+        throw new Error('Aggiornamento follow non riuscito');
     }
-
-    await pool.query(
-        'INSERT IGNORE INTO utente_artista (utente_id, artista_id) VALUES (?, ?)',
-        [req.utente.id, id],
-    );
-
-    res.status(204).end();
 }
 
 async function smettiDiSeguire(req, res) {
-    await pool.query(
-        'DELETE FROM utente_artista WHERE utente_id = ? AND artista_id = ?',
-        [req.utente.id, req.params.id],
-    );
+    try {
+        await pool.query(
+            'DELETE FROM utente_artista WHERE utente_id = ? AND artista_id = ?',
+            [req.utente.id, req.params.id],
+        );
 
-    res.status(204).end();
+        res.status(204).end();
+    } catch {
+        throw new Error('Aggiornamento follow non riuscito');
+    }
 }
+
+function validaIdFollow(req, res, next) {
+    const id = req.params.id;
+    if (!/^[1-9]\d*$/.test(id) || !Number.isSafeInteger(Number(id)) || Number(id) > 2147483647) {
+        return res.status(400).json({ messaggio: 'ID artista non valido' });
+    }
+    res.set('Cache-Control', 'no-store');
+    next();
+}
+const protezioniFollow = [richiediAutenticazione, richiediRuolo('USER'), validaIdFollow];
 
 router.get('/artisti', autenticazioneFacoltativa, elencaArtisti);
 router.get('/artisti/:id', autenticazioneFacoltativa, dettaglioArtista);
-router.put('/artisti/:id/segui', richiediAutenticazione, seguiArtista);
-router.delete('/artisti/:id/segui', richiediAutenticazione, smettiDiSeguire);
+router.put('/artisti/:id/segui', ...protezioniFollow, seguiArtista);
+router.delete('/artisti/:id/segui', ...protezioniFollow, smettiDiSeguire);
 
 module.exports = router;
