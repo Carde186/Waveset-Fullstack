@@ -1,7 +1,8 @@
+import { t, type Chiave } from '../localizzazione/lingua';
 import { useState, type SubmitEvent } from 'react';
 import { Link, useLocation } from 'react-router';
 import { ErroreApi } from '../api/client';
-import { messaggioAccesso } from '../api/messaggi';
+import { messaggioAccesso, testoMessaggio, type Messaggio } from '../api/messaggi';
 import { useAutenticazione } from '../autenticazione/contesto';
 import { Avviso } from '../componenti/Avviso';
 import { Bottone } from '../componenti/Bottone';
@@ -32,21 +33,21 @@ export function Accedi() {
 
     const [email, impostaEmail] = useState(dopoRegistrazione?.email ?? '');
     const [password, impostaPassword] = useState('');
-    const [mancanti, impostaMancanti] = useState<{ email?: string; password?: string }>({});
-    const [errore, impostaErrore] = useState<string | null>(null);
+    const [mancanti, impostaMancanti] = useState<{ email?: Chiave; password?: Chiave }>({});
+    const [errore, impostaErrore] = useState<Messaggio | null>(null);
     const [invio, impostaInvio] = useState(false);
 
     async function suInvio(evento: SubmitEvent<HTMLFormElement>) {
         evento.preventDefault();
 
         const emailPulita = email.trim();
-        const nuoviMancanti: { email?: string; password?: string } = {};
+        const nuoviMancanti: { email?: Chiave; password?: Chiave } = {};
 
         if (emailPulita === '') {
-            nuoviMancanti.email = 'Inserisci la tua email.';
+            nuoviMancanti.email = 'common.emailRequired';
         }
         if (password === '') {
-            nuoviMancanti.password = 'Inserisci la password.';
+            nuoviMancanti.password = 'common.passwordRequired';
         }
         impostaMancanti(nuoviMancanti);
         impostaErrore(null);
@@ -74,48 +75,47 @@ export function Accedi() {
     return (
         <section className="pagina">
             <Vetrina>
-                <div className="occhiello">Accesso</div>
-                <h1 className="titolo-medio">Accedi.</h1>
-                <p className="introduzione">Entra con l&apos;email con cui ti sei registrato.</p>
+                <div className="occhiello">{t('text.login')}</div>
+                <h1 className="titolo-medio">{t('text.logIn2')}</h1>
+                <p className="introduzione">{t('text.enterTheEmailYouUsedTo')}</p>
 
                 <form className={stile.modulo} onSubmit={suInvio} noValidate>
                     {dopoRegistrazione ? (
                         <Avviso tipo="successo">
-                            Registrazione completata. Accedi con la tua email e la tua password.
-                        </Avviso>
+                            {t('text.registrationCompleteLogInWithYour')}</Avviso>
                     ) : null}
                     {stato.tipo === 'anonimo' && stato.scaduta ? (
-                        <Avviso>La sessione non è più valida. Accedi di nuovo.</Avviso>
+                        <Avviso>{t('text.yourSessionIsNoLongerValid')}</Avviso>
                     ) : null}
-                    {errore ? <Avviso tipo="errore">{errore}</Avviso> : null}
+                    {errore ? <Avviso tipo="errore">{testoMessaggio(errore)}</Avviso> : null}
 
                     <CampoTesto
-                        etichetta="Email"
+                        etichetta={t('text.email')}
                         type="email"
                         name="email"
                         autoComplete="username"
                         value={email}
                         onChange={(e) => impostaEmail(e.target.value)}
-                        errore={mancanti.email}
+                        errore={mancanti.email ? t(mancanti.email) : undefined}
                         disabled={invio}
                     />
                     <CampoTesto
-                        etichetta="Password"
+                        etichetta={t('text.password')}
                         type="password"
                         name="password"
                         autoComplete="current-password"
                         value={password}
                         onChange={(e) => impostaPassword(e.target.value)}
-                        errore={mancanti.password}
+                        errore={mancanti.password ? t(mancanti.password) : undefined}
                         disabled={invio}
                     />
 
                     <div className={stile.azioni}>
                         <Bottone type="submit" disabled={invio}>
-                            {invio ? 'Accesso in corso…' : 'Accedi ↗'}
+                            {invio ? t('login.pending') : t('login.submit')}
                         </Bottone>
                         <p className={stile.alternativa}>
-                            Non hai un account? <Link to="/registrati">Registrati</Link>
+                            {t('text.donTHaveAnAccount')}{' '}<Link to="/registrati">{t('text.signUp')}</Link>
                         </p>
                     </div>
                 </form>

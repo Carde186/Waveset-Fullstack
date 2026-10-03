@@ -1,3 +1,4 @@
+import { t } from '../localizzazione/lingua';
 import { useCallback, useMemo } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { idEventoDaPercorso, leggiEvento } from '../api/eventi';
@@ -21,22 +22,22 @@ export function DettaglioEvento() {
     const carica = useCallback(() => id === null ? Promise.reject(new ErroreApi(400)) : leggiEvento(id), [id]);
     const { stato, riprova } = useRisorsa(`evento:${parametro}`, carica);
     const eventiMappa = useMemo(() => stato.tipo === 'pronto' ? [stato.dati] : [], [stato]);
-    if (stato.tipo === 'caricamento') return <StatoCaricamento testo="Carico il dettaglio evento…" />;
+    if (stato.tipo === 'caricamento') return <StatoCaricamento testo={t('text.loadingEventDetails')} />;
     if (stato.tipo === 'errore') {
         if (stato.causa instanceof ErroreApi && (stato.causa.stato === 400 || stato.causa.stato === 404)) return <StatoVuoto
-            occhiello={id === null ? 'Indirizzo non valido' : '404'} titolo="Evento non trovato." messaggio="Questo evento non è disponibile."
-            azione={{ testo: 'Torna agli eventi', verso: '/eventi' }} />;
-        return <StatoErrore titolo="Il dettaglio evento non è disponibile." messaggio={stato.causa instanceof ErroreApi && stato.causa.stato === 401
-            ? <>La sessione non è valida. <Link to="/accedi">Accedi</Link> e riprova.</> : erroreCatalogo(stato.causa)} suRiprova={riprova} />;
+            occhiello={id === null ? t('events.invalidAddress') : '404'} titolo={t('text.eventNotFound')} messaggio={t('text.thisEventIsUnavailable')}
+            azione={{ testo: t('events.return'), verso: '/eventi' }} />;
+        return <StatoErrore titolo={t('text.eventDetailsAreUnavailable')} messaggio={stato.causa instanceof ErroreApi && stato.causa.stato === 401
+            ? <>{t('text.yourSessionIsInvalid')}{' '}<Link to="/accedi">{t('text.logIn')}</Link> {t('text.andTryAgain')}</> : erroreCatalogo(stato.causa)} suRiprova={riprova} />;
     }
     const evento = stato.dati;
     return <section className="pagina">
-        <nav aria-label="Percorso negli eventi" className={stile.percorso}><Link to={ritorno}>← Eventi</Link></nav>
-        <Vetrina><div className="occhiello">Evento · Catalogo locale</div><h1 className="titolo">{evento.titolo}</h1><InformazioniEvento evento={evento} /></Vetrina>
+        <nav aria-label={t('text.eventsBreadcrumb')} className={stile.percorso}><Link to={ritorno}>{t('text.events2')}</Link></nav>
+        <Vetrina><div className="occhiello">{t('text.eventLocalCatalog')}</div><h1 className="titolo">{evento.titolo}</h1><InformazioniEvento evento={evento} /></Vetrina>
         <div className={stile.disposizione}>
             <MappaEventi eventi={eventiMappa} selezionato={evento.id} suSelezione={nessunaSelezione} />
-            <section className={stile.carta}><h2>Lineup</h2><LineupEvento evento={evento} />
-                {!evento.coordinate ? <p>Posizione sulla mappa non disponibile.</p> : null}
+            <section className={stile.carta}><h2>{t('text.lineup')}</h2><LineupEvento evento={evento} />
+                {!evento.coordinate ? <p>{t('text.mapLocationUnavailable')}</p> : null}
             </section>
         </div>
     </section>;

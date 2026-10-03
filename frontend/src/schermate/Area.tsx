@@ -1,5 +1,6 @@
+import { t } from '../localizzazione/lingua';
 import { useState } from 'react';
-import { messaggioUscita } from '../api/messaggi';
+import { messaggioUscita, testoMessaggio, type Messaggio } from '../api/messaggi';
 import { useAutenticazione } from '../autenticazione/contesto';
 import { Avviso } from '../componenti/Avviso';
 import { Bottone } from '../componenti/Bottone';
@@ -12,7 +13,7 @@ export function Area() {
     const { stato, esci, esciDaTutti } = useAutenticazione();
     const [inCorso, impostaInCorso] = useState<'uscita' | 'uscita-tutti' | null>(null);
     const [confermaTutti, impostaConfermaTutti] = useState(false);
-    const [errore, impostaErrore] = useState<string | null>(null);
+    const [errore, impostaErrore] = useState<Messaggio | null>(null);
 
     if (stato.tipo !== 'autenticato') {
         return null;
@@ -37,41 +38,39 @@ export function Area() {
     return (
         <section className="pagina">
             <Vetrina>
-                <div className="occhiello">La tua area</div>
-                <h1 className="titolo-medio">Ciao, {utente.nome}.</h1>
-                <p>Sei dentro. Da qui puoi controllare chi sei e chiudere la sessione.</p>
-                <ul className={stile.dati} aria-label="I tuoi dati">
+                <div className="occhiello">{t('text.yourAccount')}</div>
+                <h1 className="titolo-medio">{t('text.hi')}{' '}{utente.nome}.</h1>
+                <p>{t('text.youReLoggedInHereYou')}</p>
+                <ul className={stile.dati} aria-label={t('text.yourDetails')}>
                     <li>{utente.email}</li>
-                    <li>Ruolo: {utente.ruolo}</li>
+                    <li>{t('text.role')}{' '}{utente.ruolo}</li>
                 </ul>
             </Vetrina>
 
             <div className="sezione">
-                <h2>La sessione</h2>
+                <h2>{t('text.session')}</h2>
             </div>
 
-            {errore ? <Avviso tipo="errore">{errore}</Avviso> : null}
+            {errore ? <Avviso tipo="errore">{testoMessaggio(errore)}</Avviso> : null}
 
             <div className={stile.carte}>
                 <div className={stile.carta}>
                     <div>
-                        <small>Questo browser</small>
-                        <p>Chiude la sessione di questo browser e ti riporta all&apos;accesso.</p>
+                        <small>{t('text.thisBrowser')}</small>
+                        <p>{t('text.endsThisBrowserSSessionAnd')}</p>
                     </div>
                     <div>
                         <Bottone onClick={() => void chiudi('uscita')} disabled={inCorso !== null}>
-                            {inCorso === 'uscita' ? 'Uscita in corso…' : 'Esci ↗'}
+                            {inCorso === 'uscita' ? t('area.logoutPending') : t('area.logout')}
                         </Bottone>
                     </div>
                 </div>
 
                 <div className={stile.carta}>
                     <div>
-                        <small>Tutti i dispositivi</small>
+                        <small>{t('text.allDevices')}</small>
                         <p>
-                            Chiude tutte le tue sessioni, anche quelle di altri browser e
-                            dell&apos;app Android.
-                        </p>
+                            {t('text.endsAllYourSessionsIncludingOther')}</p>
                     </div>
                     <div>
                         {confermaTutti ? (
@@ -81,16 +80,15 @@ export function Area() {
                                     disabled={inCorso !== null}
                                 >
                                     {inCorso === 'uscita-tutti'
-                                        ? 'Uscita in corso…'
-                                        : 'Sì, esci da tutti'}
+                                        ? t('area.logoutPending')
+                                        : t('area.confirmLogoutAll')}
                                 </Bottone>
                                 <Bottone
                                     variante="contorno"
                                     onClick={() => impostaConfermaTutti(false)}
                                     disabled={inCorso !== null}
                                 >
-                                    Annulla
-                                </Bottone>
+                                    {t('text.cancel')}</Bottone>
                             </div>
                         ) : (
                             <Bottone
@@ -98,16 +96,14 @@ export function Area() {
                                 onClick={() => impostaConfermaTutti(true)}
                                 disabled={inCorso !== null}
                             >
-                                Esci da tutti i dispositivi
-                            </Bottone>
+                                {t('text.logOutOfAllDevices')}</Bottone>
                         )}
                     </div>
                 </div>
             </div>
 
             <div className="piede">
-                Progetto didattico. Eventi e Playlist arriveranno nei prossimi incrementi.
-            </div>
+                {t('text.learningProjectEventsAndPlaylistsWill')}</div>
         </section>
     );
 }

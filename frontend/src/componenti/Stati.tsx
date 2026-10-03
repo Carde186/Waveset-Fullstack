@@ -1,3 +1,4 @@
+import { t } from '../localizzazione/lingua';
 import type { ReactNode } from 'react';
 import { Bottone, BottoneLink } from './Bottone';
 import stile from './Stati.module.css';
@@ -8,7 +9,7 @@ import stile from './Stati.module.css';
 type LivelloTitolo = 1 | 2 | 3;
 
 export function StatoCaricamento({
-    testo = 'Caricamento…',
+    testo = t('common.loading'),
     livelloTitolo = 1,
 }: {
     testo?: string;
@@ -18,7 +19,7 @@ export function StatoCaricamento({
     return (
         <section className="pagina" aria-busy="true">
             <div className={stile.stato} role="status">
-                <div className="occhiello">In corso</div>
+                <div className="occhiello">{t('text.inProgress')}</div>
                 <Titolo>{testo}</Titolo>
                 <div className={stile.barra} aria-hidden="true" />
             </div>
@@ -27,7 +28,7 @@ export function StatoCaricamento({
 }
 
 export function StatoErrore({
-    titolo = 'Non riesco a continuare.',
+    titolo = t('common.cannotContinue'),
     messaggio,
     suRiprova,
     livelloTitolo = 1,
@@ -41,10 +42,10 @@ export function StatoErrore({
     return (
         <section className="pagina">
             <div className={stile.stato} role="alert">
-                <div className="occhiello">Errore</div>
+                <div className="occhiello">{t('text.error')}</div>
                 <Titolo>{titolo}</Titolo>
                 <p>{messaggio}</p>
-                {suRiprova ? <Bottone onClick={suRiprova}>Riprova ↗</Bottone> : null}
+                {suRiprova ? <Bottone onClick={suRiprova}>{t('text.tryAgain')}</Bottone> : null}
             </div>
         </section>
     );

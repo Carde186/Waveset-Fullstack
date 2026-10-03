@@ -20,6 +20,7 @@ const routeAdminSpotify = require('./routes/admin/spotify');
 const routeAlbum = require('./routes/album');
 const routeArtisti = require('./routes/artisti');
 const routeAutenticazione = require('./routes/autenticazione');
+const routeAccount = require('./routes/account');
 const routeBrani = require('./routes/brani');
 const routeDeezer = require('./routes/deezer');
 const routeEventi = require('./routes/eventi');
@@ -65,6 +66,8 @@ function creaApp(opzioni = {}) {
 
     // Letti dal gestore del login (routes/autenticazione.js).
     app.locals.limitiLogin = limitiLogin;
+    app.locals.limitiAccount = opzioni.limitatoreAccount ?? creaLimitatore({ massimo: 20, finestraMs: 900_000 });
+    if (!opzioni.limitatoreAccount) app.locals.limitiAccount.avviaPulizia();
     app.locals.ricavaIp = opzioni.ricavaIp ?? (req => req.ip);
 
     // Letta da trovaSessione (trasporto cookie) e da proteggiSessioneCookie.
@@ -109,6 +112,7 @@ function creaApp(opzioni = {}) {
     app.use('/api', routeEventi);
     app.use('/api', routeNovita);
     app.use('/api/auth', routeAutenticazione);
+    app.use('/api/auth', routeAccount);
     // Middleware montato solo su /api/playlist: su '/api' intercetterebbe
     // anche gli URL inesistenti del catalogo (401 al posto di 404).
     app.use('/api/playlist', richiediAutenticazione, routePlaylist);

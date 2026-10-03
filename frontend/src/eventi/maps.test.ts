@@ -108,6 +108,24 @@ test('solo eventi con coordinate diventano marker', async () => {
     m.distruggi();
 });
 
+test('localizzare il titolo conserva mappa, modalità, camera e marker selezionato', async () => {
+    const { creaMappa } = await import('./maps');
+    const { impostaLingua } = await import('../localizzazione/lingua');
+    const m = creaMappa({ contenitore: document.createElement('div'), api, mapId: 'id',
+        eventi: [EVENTO], modalita: 'satellite', selezionato: 5,
+        suSelezione: vi.fn(), suPronto: vi.fn(), suErrore: vi.fn() });
+    const mappa = MappaFinta.create[0]!;
+    const vista = { centro: mappa.centro, zoom: mappa.zoom };
+    expect(MarkerFinto.create[0]?.title).toContain('Selezionato:');
+    impostaLingua('en'); m.aggiornaTesti();
+    expect(MarkerFinto.create[0]?.title).toBe('Selected: Live · Nova');
+    expect(MarkerFinto.create[0]?.contenuto).toHaveClass(stileMarker.selezionato!);
+    expect(MappaFinta.create).toHaveLength(1);
+    expect(mappa.options.mapTypeId).toBe('satellite');
+    expect(mappa.centro).toEqual(vista.centro); expect(mappa.zoom).toBe(vista.zoom);
+    m.distruggi(); impostaLingua('it');
+});
+
 test('foto del primo artista ripetuta per evento, fallback su errore e selezione indipendente', async () => {
     const { creaMappa } = await import('./maps');
     const artista = { id: 2, nome: 'Nova', immagineUrl: 'https://catalogo.waveset.test/nova.jpg' };
@@ -152,13 +170,13 @@ test('timeout tile, loader fallito, timeout loader e autenticazione Google falli
         const m = creaMappa({ contenitore: document.createElement('div'), api, mapId: 'id', eventi: [EVENTO],
             modalita: 'standard', selezionato: null, suSelezione: vi.fn(), suPronto: vi.fn(), suErrore: errore });
         await vi.advanceTimersByTimeAsync(TIMEOUT_MAPPA);
-        expect(errore).toHaveBeenCalledWith('Google Maps non risponde in tempo.');
+        expect(errore).toHaveBeenCalledWith('maps.timeout');
         m.distruggi();
         loader.importLibrary.mockRejectedValueOnce(new Error('script bloccato'));
         await expect(caricaMaps('chiave-simulata')).rejects.toThrow('script bloccato');
         loader.importLibrary.mockImplementation(() => new Promise(() => {}));
         const attesa = caricaMaps('chiave-simulata');
-        const risultato = expect(attesa).rejects.toThrow('in tempo');
+        const risultato = expect(attesa).rejects.toThrow('maps.timeout');
         await vi.advanceTimersByTimeAsync(TIMEOUT_MAPPA);
         await risultato;
         const auth = vi.fn();
@@ -166,6 +184,6 @@ test('timeout tile, loader fallito, timeout loader e autenticazione Google falli
         window.gm_authFailure?.();
         expect(auth).toHaveBeenCalledOnce();
         smetti();
-        await expect(caricaMaps('chiave-simulata')).rejects.toThrow('non ha autorizzato');
+        await expect(caricaMaps('chiave-simulata')).rejects.toThrow('maps.auth');
     } finally { vi.useRealTimers(); }
 });

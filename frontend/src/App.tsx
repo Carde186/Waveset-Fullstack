@@ -1,3 +1,6 @@
+import { testoMessaggio } from './api/messaggi';
+import { useEffect } from 'react';
+import { t, useLingua } from './localizzazione/lingua';
 import type { ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router';
 import { useAutenticazione } from './autenticazione/contesto';
@@ -10,6 +13,7 @@ import { Esplora } from './schermate/Esplora';
 import { DettaglioAlbum, DettaglioArtista, DettaglioBrano } from './schermate/DettagliCatalogo';
 import { Eventi } from './schermate/Eventi';
 import { DettaglioEvento } from './schermate/DettaglioEvento';
+import { ImpostazioniAccount } from './schermate/ImpostazioniAccount';
 
 // Finché la sessione non è nota (controllo iniziale con /auth/io) o se il backend
 // non ha risposto, si mostra lo stato relativo invece di indovinare.
@@ -17,13 +21,13 @@ function useAttesaSessione(): ReactNode | null {
     const { stato, riprova } = useAutenticazione();
 
     if (stato.tipo === 'caricamento') {
-        return <StatoCaricamento testo="Controllo la sessione…" />;
+        return <StatoCaricamento testo={t('text.checkingYourSession')} />;
     }
     if (stato.tipo === 'errore') {
         return (
             <StatoErrore
-                titolo="Il server non risponde."
-                messaggio={stato.messaggio}
+                titolo={t('text.theServerIsNotResponding')}
+                messaggio={testoMessaggio(stato.messaggio)}
                 suRiprova={() => void riprova()}
             />
         );
@@ -66,16 +70,18 @@ function Iniziale() {
 }
 
 export function App() {
+    const lingua = useLingua();
+    useEffect(() => { document.documentElement.lang = lingua; document.title = t('app.title'); }, [lingua]);
     return (
         <>
             <a className="salta-al-contenuto" href="#contenuto">
-                Vai al contenuto
-            </a>
+                {t('text.skipToContent')}</a>
             <Intestazione />
             <main id="contenuto" tabIndex={-1}>
                 <Routes>
                     <Route path="/" element={<Iniziale />} />
                     <Route path="/esplora" element={<Esplora />} />
+                    <Route path="/impostazioni" element={<SoloAutenticati><ImpostazioniAccount /></SoloAutenticati>} />
                     <Route path="/eventi" element={<Eventi />} />
                     <Route path="/eventi/:id" element={<DettaglioEvento />} />
                     <Route path="/artisti/:id" element={<DettaglioArtista />} />
@@ -110,9 +116,9 @@ export function App() {
                         element={
                             <StatoVuoto
                                 occhiello="404"
-                                titolo="Pagina non trovata."
-                                messaggio="L'indirizzo che hai aperto non esiste."
-                                azione={{ testo: "Torna all'inizio", verso: '/' }}
+                                titolo={t('text.pageNotFound')}
+                                messaggio={t('text.theAddressYouOpenedDoesNot')}
+                                azione={{ testo: t('common.returnHome'), verso: '/' }}
                             />
                         }
                     />

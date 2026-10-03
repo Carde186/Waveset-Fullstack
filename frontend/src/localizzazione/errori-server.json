@@ -1,0 +1,15 @@
+{
+    "almeno 12 caratteri": "common.minPassword",
+    "al massimo 72 byte": "common.maxPassword",
+    "al massimo 200 caratteri": "common.maxName",
+    "al massimo 255 caratteri": "common.maxEmail",
+    "formato non valido": "common.invalidFormat",
+    "dominio riservato": "common.reservedDomain",
+    "obbligatorio": "common.required",
+    "obbligatorio (testo)": "common.requiredText",
+    "obbligatoria": "common.requiredEmail",
+    "obbligatoria (testo)": "common.requiredEmailText",
+    "caratteri non ammessi": "common.invalidCharacters",
+    "non può essere vuota": "common.notEmpty",
+    "Sessione browser non disponibile": "error.sessionUnavailable"
+}

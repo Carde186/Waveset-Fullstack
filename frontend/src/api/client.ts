@@ -12,6 +12,7 @@
 export class ErroreApi extends Error {
     // 0 = nessuna risposta (rete, backend spento); altrimenti lo stato HTTP.
     readonly stato: number;
+    readonly codice: string | null;
     // Il testo `messaggio` del corpo JSON del backend, se c'era.
     readonly messaggioServer: string | null;
     // Errori per campo (400 della registrazione): { campo: motivo }.
@@ -23,6 +24,7 @@ export class ErroreApi extends Error {
         stato: number,
         dettagli: {
             messaggioServer?: string | null;
+            codice?: string | null;
             campi?: Record<string, string> | null;
             riprovaTraSec?: number | null;
         } = {},
@@ -30,6 +32,7 @@ export class ErroreApi extends Error {
         super(dettagli.messaggioServer ?? `Errore ${stato}`);
         this.name = 'ErroreApi';
         this.stato = stato;
+        this.codice = dettagli.codice ?? null;
         this.messaggioServer = dettagli.messaggioServer ?? null;
         this.campi = dettagli.campi ?? null;
         this.riprovaTraSec = dettagli.riprovaTraSec ?? null;
@@ -53,7 +56,7 @@ export function leggiCsrf(): string | null {
 const METODI_SICURI = new Set(['GET', 'HEAD']);
 
 interface OpzioniRichiesta {
-    metodo?: 'GET' | 'POST';
+    metodo?: 'GET' | 'POST' | 'PATCH';
     corpo?: unknown;
     // Le richieste non sicure portano X-CSRF-Token (se in memoria). Il login e la
     // registrazione non lo usano: prima non esiste ancora una sessione.
@@ -124,6 +127,7 @@ export async function richiesta(
 
     if (!risposta.ok) {
         throw new ErroreApi(risposta.status, {
+            codice: eOggetto(dati) && typeof dati.codice === 'string' ? dati.codice : null,
             messaggioServer:
                 eOggetto(dati) && typeof dati.messaggio === 'string' ? dati.messaggio : null,
             campi: estraiCampi(dati),

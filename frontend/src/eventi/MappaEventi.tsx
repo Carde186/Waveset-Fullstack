@@ -1,17 +1,19 @@
+import { t, useLingua, type Chiave } from '../localizzazione/lingua';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { Evento } from '../api/eventi';
 import { Bottone } from '../componenti/Bottone';
 import { ascoltaErroreGoogle, caricaMaps, creaMappa, leggiModalita, MODALITA_MAPPA, salvaModalita, type LibrerieMaps, type ModalitaMappa } from './maps';
 import stile from './Eventi.module.css';
 
-const NOMI: Record<ModalitaMappa, string> = {
-    standard: 'Standard', scura: 'Scura', satellite: 'Satellite', ibrida: 'Ibrida',
+const NOMI: Record<ModalitaMappa, Chiave> = {
+    standard: 'maps.standard', scura: 'maps.dark', satellite: 'maps.satellite', ibrida: 'maps.hybrid',
 };
-type StatoMappa = { tipo: 'caricamento' | 'pronto' } | { tipo: 'errore'; messaggio: string };
+type StatoMappa = { tipo: 'caricamento' | 'pronto' } | { tipo: 'errore'; messaggio: Chiave };
 
 export function MappaEventi({ eventi, selezionato, suSelezione }: {
     eventi: Evento[]; selezionato: number | null; suSelezione: (id: number) => void;
 }) {
+    const lingua = useLingua();
     const contenitore = useRef<HTMLDivElement>(null);
     const controllo = useRef<ReturnType<typeof creaMappa> | null>(null);
     const [modalita, impostaModalita] = useState(leggiModalita);
@@ -24,7 +26,7 @@ export function MappaEventi({ eventi, selezionato, suSelezione }: {
     const stato: StatoMappa = esito?.eventi === eventi && esito.tentativo === tentativo ? esito.stato : { tipo: 'caricamento' };
 
     // Legge modalità e selezione più recenti anche se il loader era in viaggio.
-    const inizializza = useEffectEvent((api: LibrerieMaps, pronto: () => void, errore: (messaggio: string) => void) =>
+    const inizializza = useEffectEvent((api: LibrerieMaps, pronto: () => void, errore: (messaggio: Chiave) => void) =>
         creaMappa({ contenitore: contenitore.current!, api, mapId: mapId!, eventi, modalita, selezionato, suSelezione, suPronto: pronto, suErrore: errore }),
     );
 
@@ -35,7 +37,7 @@ export function MappaEventi({ eventi, selezionato, suSelezione }: {
         let authFallita = false;
         let ripetuto = false;
         let timerRetry: ReturnType<typeof setTimeout> | undefined;
-        const fallisci = (messaggio: string) => {
+        const fallisci = (messaggio: Chiave) => {
             if (!attivo) return;
             clearTimeout(timerRetry);
             locale?.distruggi();
@@ -43,7 +45,7 @@ export function MappaEventi({ eventi, selezionato, suSelezione }: {
             controllo.current = null;
             // Una risposta Google temporaneamente lenta/fallita non deve
             // richiedere un click. Un solo retry, con lo stesso SDK condiviso.
-            if (!authFallita && !ripetuto && messaggio.includes('in tempo')) {
+            if (!authFallita && !ripetuto && messaggio === 'maps.timeout') {
                 ripetuto = true;
                 impostaEsito({ eventi, tentativo, stato: { tipo: 'caricamento' } });
                 timerRetry = setTimeout(carica, 500);
@@ -60,16 +62,16 @@ export function MappaEventi({ eventi, selezionato, suSelezione }: {
                         if (attivo && !authFallita) impostaEsito({ eventi, tentativo, stato: { tipo: 'pronto' } });
                     }, fallisci);
                     controllo.current = locale;
-                } catch { fallisci('Non è possibile inizializzare Google Maps. Riprova.'); }
+                } catch { fallisci('maps.init'); }
             }, (errore: unknown) => {
-                if (!authFallita) fallisci(errore instanceof Error && errore.message.includes('in tempo')
-                    ? 'Google Maps non risponde in tempo. Riprova.'
-                    : 'Non è possibile caricare Google Maps. Riprova.');
+                if (!authFallita) fallisci(errore instanceof Error && errore.message === 'maps.timeout'
+                    ? 'maps.timeout'
+                    : 'maps.load');
             });
         }
         const annullaAuth = ascoltaErroreGoogle(() => {
             authFallita = true;
-            fallisci('Google Maps non ha autorizzato la mappa. Gli eventi restano consultabili nella lista.');
+            fallisci('maps.authList');
         });
         carica();
         return () => {
@@ -84,6 +86,7 @@ export function MappaEventi({ eventi, selezionato, suSelezione }: {
     useEffect(() => {
         controllo.current?.modalita(modalita);
     }, [modalita, eventi, tentativo]);
+    useEffect(() => { controllo.current?.aggiornaTesti(); }, [lingua]);
     useEffect(() => { controllo.current?.seleziona(selezionato); }, [selezionato]);
 
     function cambia(m: ModalitaMappa) {
@@ -91,22 +94,21 @@ export function MappaEventi({ eventi, selezionato, suSelezione }: {
         salvaModalita(m);
     }
 
-    return <section className={stile.pannelloMappa} aria-label="Mappa degli eventi">
-        <h2>Trova il tuo prossimo live</h2>
-        <label className={stile.selettore}>Modalità mappa
-            <select value={modalita} onChange={(e) => cambia(e.target.value as ModalitaMappa)}>
-                {MODALITA_MAPPA.map((m) => <option value={m} key={m}>{NOMI[m]}</option>)}
+    return <section className={stile.pannelloMappa} aria-label={t('text.eventMap')}>
+        <h2>{t('text.findYourNextLiveShow')}</h2>
+        <label className={stile.selettore}>{t('text.mapMode')}<select value={modalita} onChange={(e) => cambia(e.target.value as ModalitaMappa)}>
+                {MODALITA_MAPPA.map((m) => <option value={m} key={m}>{t(NOMI[m])}</option>)}
             </select>
         </label>
-        {!configurata ? <p role="status">La mappa non è configurata. Puoi consultare tutti gli eventi nella lista.</p>
-            : !conCoordinate ? <p role="status">Nessun evento ha coordinate disponibili. Puoi consultare gli eventi nella lista.</p>
+        {!configurata ? <p role="status">{t('text.theMapIsNotConfiguredYou')}</p>
+            : !conCoordinate ? <p role="status">{t('text.noEventsHaveCoordinatesAvailableYou')}</p>
             : <>
-                {stato.tipo === 'caricamento' ? <p role="status">Carico Google Maps…</p> : null}
+                {stato.tipo === 'caricamento' ? <p role="status">{t('text.loadingGoogleMaps')}</p> : null}
                 {stato.tipo === 'errore' ? <div role="alert">
-                    <p>{stato.messaggio}</p>
-                    <Bottone onClick={() => impostaTentativo((n) => n + 1)}>Riprova mappa</Bottone>
+                    <p>{t(stato.messaggio)}</p>
+                    <Bottone onClick={() => impostaTentativo((n) => n + 1)}>{t('text.retryMap')}</Bottone>
                 </div> : null}
-                <div ref={contenitore} className={stile.mappa} hidden={stato.tipo === 'errore'} aria-label="Google Maps: usa le frecce per spostarti; gli eventi sono disponibili anche nella lista" />
+                <div ref={contenitore} className={stile.mappa} hidden={stato.tipo === 'errore'} aria-label={t('text.googleMapsUseTheArrowKeys')} />
             </>}
     </section>;
 }

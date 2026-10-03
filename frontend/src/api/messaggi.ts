@@ -1,96 +1,40 @@
+import motiviServer from '../localizzazione/errori-server.json';
 import { ErroreApi } from './client';
+import { t, type Chiave } from '../localizzazione/lingua';
 
-// Testi mostrati all'utente per gli errori dell'API. Vivono qui, in un solo posto,
-// così le schermate non cambiano se cambia una frase.
-
-export const TESTO_SESSIONE_NON_DISPONIBILE =
-    'La sessione del browser non è attiva su questo server: il backend deve essere avviato con ' +
-    "FRONTEND_ORIGINS impostata sull'origine di questa pagina (vedi frontend/README.md).";
-
-const MESSAGGIO_SERVER_503 = 'Sessione browser non disponibile';
-
-function conRiprova(base: string, errore: ErroreApi): string {
-    return errore.riprovaTraSec === null
-        ? `${base} Riprova tra qualche minuto.`
-        : `${base} Riprova tra ${errore.riprovaTraSec} secondi.`;
+// Si conserva la chiave nello stato: un errore già visibile cambia lingua
+// senza ripetere la richiesta né conservare messaggi interni del server.
+export interface Messaggio { chiave: Chiave; parametri?: Record<string, string | number> }
+export function testoMessaggio(messaggio: Messaggio): string {
+    return t(messaggio.chiave, messaggio.parametri);
 }
-
-// Errori comuni a ogni schermata. Restituisce null se non è un caso generale.
-function messaggioComune(errore: unknown): string | null {
-    if (!(errore instanceof ErroreApi)) {
-        return 'Qualcosa è andato storto. Riprova.';
-    }
-    if (errore.eRete) {
-        return 'Il server non risponde. Controlla che il backend sia avviato e riprova.';
-    }
-    if (errore.stato === 429) {
-        return conRiprova('Troppi tentativi.', errore);
-    }
-    if (errore.stato >= 500) {
-        return errore.stato === 503 && errore.messaggioServer === MESSAGGIO_SERVER_503
-            ? TESTO_SESSIONE_NON_DISPONIBILE
-            : `Il backend non è raggiungibile o ha risposto con un errore (codice ${errore.stato}).`;
-    }
-
+function messaggioComune(errore: unknown): Messaggio | null {
+    if (!(errore instanceof ErroreApi)) return { chiave: 'error.generic' };
+    if (errore.eRete) return { chiave: 'error.network' };
+    if (errore.stato === 429) return errore.riprovaTraSec === null
+        ? { chiave: 'error.rate' } : { chiave: 'error.rateSeconds', parametri: { seconds: errore.riprovaTraSec } };
+    if (errore.stato >= 500) return errore.stato === 503 && (motiviServer as Record<string, Chiave>)[errore.messaggioServer ?? ''] === 'error.sessionUnavailable'
+        ? { chiave: 'error.sessionUnavailable' } : { chiave: 'error.server', parametri: { status: errore.stato } };
     return null;
 }
-
-export function messaggioGenerico(errore: unknown): string {
-    return (
-        messaggioComune(errore) ??
-        `Richiesta non riuscita (codice ${errore instanceof ErroreApi ? errore.stato : '?'}).`
-    );
+export function messaggioGenerico(errore: unknown): Messaggio {
+    return messaggioComune(errore) ?? { chiave: 'error.request', parametri: { status: errore instanceof ErroreApi ? errore.stato : '?' } };
 }
-
-export function messaggioAccesso(errore: unknown): string {
+export function messaggioAccesso(errore: unknown): Messaggio {
     const comune = messaggioComune(errore);
-
-    if (comune !== null) {
-        return comune;
-    }
+    if (comune) return comune;
     if (errore instanceof ErroreApi) {
-        if (errore.stato === 401) {
-            return 'Email o password errati.';
-        }
-        if (errore.stato === 400) {
-            return 'Inserisci email e password.';
-        }
-        if (errore.stato === 403) {
-            return (
-                "Il server ha rifiutato la richiesta: l'origine di questa pagina non è tra " +
-                "quelle ammesse. Apri l'app dall'indirizzo previsto (vedi frontend/README.md)."
-            );
-        }
+        if (errore.stato === 401) return { chiave: 'error.credentials' };
+        if (errore.stato === 400) return { chiave: 'error.loginRequired' };
+        if (errore.stato === 403) return { chiave: 'error.origin' };
     }
-
     return messaggioGenerico(errore);
 }
-
-export function messaggioRegistrazione(errore: unknown): string {
-    const comune = messaggioComune(errore);
-
-    if (comune !== null) {
-        return comune;
-    }
-    if (errore instanceof ErroreApi) {
-        if (errore.stato === 403) {
-            return (
-                'Il browser ha ancora una sessione non più valida e il server rifiuta la ' +
-                'registrazione. Accedi (anche con un altro account) e riprova.'
-            );
-        }
-        if (errore.stato === 400) {
-            return 'Controlla i dati inseriti.';
-        }
-    }
-
+export function messaggioRegistrazione(errore: unknown): Messaggio {
+    if (errore instanceof ErroreApi && errore.stato === 403) return { chiave: 'error.registrationSession' };
+    if (errore instanceof ErroreApi && errore.stato === 400) return { chiave: 'common.invalidData' };
     return messaggioGenerico(errore);
 }
-
-export function messaggioUscita(errore: unknown): string {
-    if (errore instanceof ErroreApi && errore.stato === 403) {
-        return 'Il server ha rifiutato la richiesta di uscita. Ricarica la pagina e riprova.';
-    }
-
-    return messaggioGenerico(errore);
+export function messaggioUscita(errore: unknown): Messaggio {
+    return errore instanceof ErroreApi && errore.stato === 403 ? { chiave: 'error.logout' } : messaggioGenerico(errore);
 }

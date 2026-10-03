@@ -1,15 +1,16 @@
+import { t, locale } from '../localizzazione/lingua';
 import { ErroreApi } from '../api/client';
-import { messaggioGenerico } from '../api/messaggi';
+import { messaggioGenerico, testoMessaggio } from '../api/messaggi';
 
 export function erroreCatalogo(causa: unknown): string {
     return causa instanceof ErroreApi && causa.stato === 200
-        ? 'I dati ricevuti non sono leggibili. Riprova.'
-        : messaggioGenerico(causa);
+        ? t('error.unreadable')
+        : testoMessaggio(messaggioGenerico(causa));
 }
 
 export function dataCatalogo(data: string | null): string {
-    if (data === null) return 'Data non disponibile';
-    return new Intl.DateTimeFormat('it-IT', { dateStyle: 'long', timeZone: 'UTC' }).format(
+    if (data === null) return t('catalog.dateUnavailable');
+    return new Intl.DateTimeFormat(locale(), { dateStyle: 'long', timeZone: 'UTC' }).format(
         new Date(`${data}T00:00:00Z`),
     );
 }

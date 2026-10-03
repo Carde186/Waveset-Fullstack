@@ -88,9 +88,15 @@ export function ProviderAutenticazione({ children }: { children: ReactNode }) {
     const esci = useCallback(() => chiudi(esciApi), [chiudi]);
     const esciDaTutti = useCallback(() => chiudi(esciDaTuttiApi), [chiudi]);
 
+    const aggiornaUtente = useCallback((utente: Utente) => {
+        generazione.current++;
+        impostaStato(attuale => attuale.tipo === 'autenticato' && attuale.utente.id === utente.id
+            ? { tipo: 'autenticato', utente } : attuale);
+    }, []);
+
     const valore = useMemo(
-        () => ({ stato, accedi, esci, esciDaTutti, riprova }),
-        [stato, accedi, esci, esciDaTutti, riprova],
+        () => ({ stato, accedi, esci, esciDaTutti, riprova, aggiornaUtente }),
+        [stato, accedi, esci, esciDaTutti, riprova, aggiornaUtente],
     );
 
     return <ContestoAutenticazione value={valore}>{children}</ContestoAutenticazione>;

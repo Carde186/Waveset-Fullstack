@@ -1,3 +1,4 @@
+import { t } from '../localizzazione/lingua';
 import { useCallback, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import {
@@ -23,7 +24,7 @@ function PaginaDettaglio<T>({
     carica,
     children,
 }: {
-    tipo: string;
+    tipo: 'artista' | 'brano' | 'album';
     carica: (id: number) => Promise<T>;
     children: (dati: T) => ReactNode;
 }) {
@@ -34,20 +35,20 @@ function PaginaDettaglio<T>({
         [id, carica],
     );
     const { stato, riprova } = useRisorsa(`${tipo}:${parametro}`, richiesta);
-    if (stato.tipo === 'caricamento') return <StatoCaricamento testo="Carico il dettaglio…" />;
+    if (stato.tipo === 'caricamento') return <StatoCaricamento testo={t('text.loadingDetails')} />;
     if (stato.tipo === 'errore') {
         if (stato.causa instanceof ErroreApi && stato.causa.stato === 404)
             return (
                 <StatoVuoto
                     occhiello="404"
-                    titolo={`${tipo} non trovato.`}
-                    messaggio="Questo elemento non è presente nel catalogo locale."
-                    azione={{ testo: 'Torna a Esplora', verso: '/esplora' }}
+                    titolo={t(tipo === 'artista' ? 'catalog.artistMissing' : tipo === 'brano' ? 'catalog.trackMissing' : 'catalog.albumMissing')}
+                    messaggio={t('text.thisItemIsNotInThe')}
+                    azione={{ testo: t('common.returnExplore'), verso: '/esplora' }}
                 />
             );
         return (
             <StatoErrore
-                titolo="Il dettaglio non è disponibile."
+                titolo={t('text.detailsAreUnavailable')}
                 messaggio={erroreCatalogo(stato.causa)}
                 suRiprova={riprova}
             />
@@ -55,8 +56,8 @@ function PaginaDettaglio<T>({
     }
     return (
         <section className="pagina">
-            <nav className={stile.percorso} aria-label="Percorso nel catalogo">
-                <Link to="/esplora">← Esplora</Link>
+            <nav className={stile.percorso} aria-label={t('text.catalogBreadcrumb')}>
+                <Link to="/esplora">{t('text.explore2')}</Link>
             </nav>
             {children(stato.dati)}
         </section>
@@ -82,61 +83,60 @@ function LinkMappato({
 }) {
     const richiesta = useCallback(() => carica(id), [id, carica]);
     const { stato, riprova } = useRisorsa(`${nome}:${id}`, richiesta);
-    if (stato.tipo === 'caricamento') return <span role="status">Controllo il link {nome}…</span>;
+    if (stato.tipo === 'caricamento') return <span role="status">{t('text.checkingTheLink')}{' '}{nome}…</span>;
     if (stato.tipo === 'errore')
         return (
             <Avviso tipo="errore">
-                Il link {nome} non è disponibile al momento.{' '}
+                {t('text.theLink')}{' '}{nome} {t('text.isCurrentlyUnavailable')}{' '}
                 <Bottone variante="contorno" onClick={riprova}>
-                    Riprova link {nome}
+                    {t('text.retryLink')}{' '}{nome}
                 </Bottone>
             </Avviso>
         );
-    return stato.dati === null ? null : <LinkEsterno url={stato.dati}>Apri su {nome}</LinkEsterno>;
+    return stato.dati === null ? null : <LinkEsterno url={stato.dati}>{t('text.openOn')}{' '}{nome}</LinkEsterno>;
 }
 
 export function DettaglioArtista() {
     return (
-        <PaginaDettaglio tipo="Artista" carica={leggiArtista}>
+        <PaginaDettaglio tipo="artista" carica={leggiArtista}>
             {(artista) => (
                 <>
                     <Vetrina>
-                        <div className="occhiello">Artista · Catalogo locale</div>
+                        <div className="occhiello">{t('text.artistLocalCatalog')}</div>
                         <h1 className="titolo">{artista.nome}</h1>
-                        <p className={stile.testo}>{artista.bio || 'Biografia non disponibile.'}</p>
+                        <p className={stile.testo}>{artista.bio || t('catalog.bioUnavailable')}</p>
                         <div className={stile.metadati}>
                             {artista.generi.map((g) => (
                                 <span key={g.id}>{g.nome}</span>
                             ))}
                         </div>
-                        {artista.seguito ? <p>Artista che segui</p> : null}
+                        {artista.seguito ? <p>{t('text.artistYouFollow')}</p> : null}
                     </Vetrina>
                     {artista.immagineUrl && artista.creditoImmagine ? (
                         <figure className={stile.immagineDettaglio}>
                             <ArteCatalogo
                                 immagine={artista.immagineUrl}
-                                descrizione={`Foto di ${artista.nome}`}
+                                descrizione={t('catalog.photo', { name: artista.nome })}
                             />
                             <figcaption className={stile.credito}>
-                                Foto: {artista.creditoImmagine.autore}.{' '}
+                                {t('text.photo')}{' '}{artista.creditoImmagine.autore}.{' '}
                                 {artista.creditoImmagine.licenza}
                                 {artista.creditoImmagine.fonteUrl ? (
                                     <>
                                         {' '}
                                         ·{' '}
                                         <LinkEsterno url={artista.creditoImmagine.fonteUrl}>
-                                            Fonte
-                                        </LinkEsterno>
+                                            {t('text.source')}</LinkEsterno>
                                     </>
                                 ) : null}
                                 {artista.creditoImmagine.modificata
-                                    ? ' · Immagine modificata.'
+                                    ? t('catalog.modifiedImage')
                                     : null}
                             </figcaption>
                         </figure>
                     ) : null}
                     <div className="sezione">
-                        <h2>Album</h2>
+                        <h2>{t('text.album')}</h2>
                     </div>
                     {artista.album.length ? (
                         <div className={stile.griglia}>
@@ -145,14 +145,14 @@ export function DettaglioArtista() {
                             ))}
                         </div>
                     ) : (
-                        <p className="introduzione">Nessun album disponibile.</p>
+                        <p className="introduzione">{t('text.noAlbumsAvailable')}</p>
                     )}
                     <div className="sezione">
-                        <h2>Brani</h2>
+                        <h2>{t('text.tracks')}</h2>
                     </div>
                     <ListaBrani brani={artista.brani} />
                     <div className="sezione">
-                        <h2>Prossimi eventi</h2>
+                        <h2>{t('text.upcomingEvents')}</h2>
                     </div>
                     {artista.eventi.length ? (
                         <ul className={stile.eventi}>
@@ -161,17 +161,17 @@ export function DettaglioArtista() {
                                     <strong><Link to={`/eventi/${e.id}`}>{e.titolo}</Link></strong>
                                     <p>
                                         {dataCatalogo(e.dataEvento)} ·{' '}
-                                        {e.oraEvento?.slice(0, 5) ?? 'Orario non disponibile'}
+                                        {e.oraEvento?.slice(0, 5) ?? t('catalog.timeUnavailable')}
                                     </p>
                                     <p>
                                         {[e.luogo, e.citta].filter(Boolean).join(' · ') ||
-                                            'Luogo non disponibile'}
+                                            t('catalog.locationUnavailable')}
                                     </p>
                                 </li>
                             ))}
                         </ul>
                     ) : (
-                        <p className="introduzione">Nessun evento in arrivo.</p>
+                        <p className="introduzione">{t('text.noUpcomingEvents')}</p>
                     )}
                 </>
             )}
@@ -181,34 +181,34 @@ export function DettaglioArtista() {
 
 export function DettaglioBrano() {
     return (
-        <PaginaDettaglio tipo="Brano" carica={leggiBrano}>
+        <PaginaDettaglio tipo="brano" carica={leggiBrano}>
             {(brano) => (
                 <>
                     <Vetrina>
-                        <div className="occhiello">Brano · Catalogo locale</div>
+                        <div className="occhiello">{t('text.trackLocalCatalog')}</div>
                         <h1 className="titolo">{brano.titolo}</h1>
                         <p>
-                            Di <Link to={`/artisti/${brano.artista.id}`}>{brano.artista.nome}</Link>
+                            {t('text.by')}{' '}<Link to={`/artisti/${brano.artista.id}`}>{brano.artista.nome}</Link>
                         </p>
                         <p>{dataCatalogo(brano.dataPubblicazione)}</p>
-                        {brano.collaboratori ? <p>Collaborazioni: {brano.collaboratori}</p> : null}
+                        {brano.collaboratori ? <p>{t('text.collaborations')}{' '}{brano.collaboratori}</p> : null}
                     </Vetrina>
                     <div className="sezione">
-                        <h2>Album</h2>
+                        <h2>{t('text.album')}</h2>
                     </div>
                     {brano.album ? (
                         <div className={stile.immagineDettaglio}>
                             <CartaAlbum album={brano.album} />
                         </div>
                     ) : (
-                        <p className="introduzione">Questo brano non è associato a un album.</p>
+                        <p className="introduzione">{t('text.thisTrackIsNotAssociatedWith')}</p>
                     )}
                     <div className="sezione">
-                        <h2>Link di ascolto</h2>
+                        <h2>{t('text.listeningLinks')}</h2>
                     </div>
                     <div className={stile.azioni}>
                         {brano.urlSpotify ? (
-                            <LinkEsterno url={brano.urlSpotify}>Apri su Spotify</LinkEsterno>
+                            <LinkEsterno url={brano.urlSpotify}>{t('text.openOnSpotify')}</LinkEsterno>
                         ) : null}
                         <LinkMappato id={brano.id} nome="Apple Music" carica={leggiLinkApple} />
                     </div>
@@ -220,25 +220,25 @@ export function DettaglioBrano() {
 
 export function DettaglioAlbum() {
     return (
-        <PaginaDettaglio tipo="Album" carica={leggiAlbum}>
+        <PaginaDettaglio tipo="album" carica={leggiAlbum}>
             {(album) => (
                 <>
                     <Vetrina>
-                        <div className="occhiello">Album · Catalogo locale</div>
+                        <div className="occhiello">{t('text.albumLocalCatalog')}</div>
                         <h1 className="titolo">{album.titolo}</h1>
                         <p>
-                            Di <Link to={`/artisti/${album.artista.id}`}>{album.artista.nome}</Link>
+                            {t('text.by')}{' '}<Link to={`/artisti/${album.artista.id}`}>{album.artista.nome}</Link>
                         </p>
                         <p>{dataCatalogo(album.dataPubblicazione)}</p>
                     </Vetrina>
                     <div className={stile.immagineDettaglio}>
                         <ArteCatalogo
                             immagine={album.copertinaUrl}
-                            descrizione={`Copertina di ${album.titolo}`}
+                            descrizione={t('catalog.cover', { name: album.titolo })}
                         />
                     </div>
                     <div className="sezione">
-                        <h2>Brani</h2>
+                        <h2>{t('text.tracks')}</h2>
                     </div>
                     <ListaBrani brani={album.brani} />
                     <div className={stile.azioni}>

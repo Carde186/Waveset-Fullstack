@@ -1,8 +1,10 @@
+import motiviServer from '../localizzazione/errori-server.json';
+import { t, type Chiave } from '../localizzazione/lingua';
 import { useState, type SubmitEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { registrati } from '../api/autenticazione';
 import { ErroreApi } from '../api/client';
-import { messaggioRegistrazione } from '../api/messaggi';
+import { messaggioRegistrazione, testoMessaggio, type Messaggio } from '../api/messaggi';
 import type { CampoRegistrazione } from '../api/tipi';
 import { Avviso } from '../componenti/Avviso';
 import { Bottone } from '../componenti/Bottone';
@@ -10,17 +12,11 @@ import { CampoTesto } from '../componenti/CampoTesto';
 import { Vetrina } from '../componenti/Vetrina';
 import stile from './Accesso.module.css';
 
-type ErroriCampi = Partial<Record<CampoRegistrazione, string>>;
+type ErroriCampi = Partial<Record<CampoRegistrazione, Chiave>>;
 
 const CAMPI: CampoRegistrazione[] = ['nome', 'email', 'password'];
 
-// «almeno 12 caratteri» -> «Almeno 12 caratteri.»
-function comeFrase(motivo: string): string {
-    const testo = motivo.charAt(0).toUpperCase() + motivo.slice(1);
-
-    return testo.endsWith('.') ? testo : `${testo}.`;
-}
-
+// Solo motivi noti del contratto: mai testi arbitrari ricevuti dal server.
 // Il backend risponde 400 { messaggio, campi: { nome?, email?, password?, corpo? } }.
 function erroriDalServer(causa: ErroreApi): ErroriCampi {
     const errori: ErroriCampi = {};
@@ -29,7 +25,7 @@ function erroriDalServer(causa: ErroreApi): ErroriCampi {
         const motivo = causa.campi?.[campo];
 
         if (motivo !== undefined) {
-            errori[campo] = comeFrase(motivo);
+            errori[campo] = (motiviServer as Record<string, Chiave>)[motivo] ?? 'common.invalidData';
         }
     }
 
@@ -45,7 +41,7 @@ export function Registrati() {
     const [email, impostaEmail] = useState('');
     const [password, impostaPassword] = useState('');
     const [erroriCampi, impostaErroriCampi] = useState<ErroriCampi>({});
-    const [errore, impostaErrore] = useState<string | null>(null);
+    const [errore, impostaErrore] = useState<Messaggio | null>(null);
     const [invio, impostaInvio] = useState(false);
 
     async function suInvio(evento: SubmitEvent<HTMLFormElement>) {
@@ -55,13 +51,13 @@ export function Registrati() {
         const mancanti: ErroriCampi = {};
 
         if (dati.nome === '') {
-            mancanti.nome = 'Inserisci il tuo nome.';
+            mancanti.nome = 'common.nameRequired';
         }
         if (dati.email === '') {
-            mancanti.email = 'Inserisci la tua email.';
+            mancanti.email = 'common.emailRequired';
         }
         if (dati.password === '') {
-            mancanti.password = 'Scegli una password.';
+            mancanti.password = 'common.passwordChoose';
         }
         impostaErroriCampi(mancanti);
         impostaErrore(null);
@@ -86,7 +82,7 @@ export function Registrati() {
                     Object.keys(dalServer).length === 0 ? messaggioRegistrazione(causa) : null,
                 );
             } else if (causa instanceof ErroreApi && causa.stato === 409) {
-                impostaErroriCampi({ email: 'Questa email è già registrata.' });
+                impostaErroriCampi({ email: 'common.emailExists' });
             } else {
                 impostaErrore(messaggioRegistrazione(causa));
             }
@@ -98,52 +94,51 @@ export function Registrati() {
     return (
         <section className="pagina">
             <Vetrina>
-                <div className="occhiello">Registrazione</div>
-                <h1 className="titolo-medio">Crea il tuo account.</h1>
+                <div className="occhiello">{t('text.registration')}</div>
+                <h1 className="titolo-medio">{t('text.createYourAccount')}</h1>
                 <p className="introduzione">
-                    Dopo la registrazione accedi con la stessa email e la stessa password.
-                </p>
+                    {t('text.afterSigningUpLogInWith')}</p>
 
                 <form className={stile.modulo} onSubmit={suInvio} noValidate>
-                    {errore ? <Avviso tipo="errore">{errore}</Avviso> : null}
+                    {errore ? <Avviso tipo="errore">{testoMessaggio(errore)}</Avviso> : null}
 
                     <CampoTesto
-                        etichetta="Nome"
+                        etichetta={t('text.name')}
                         name="nome"
                         autoComplete="name"
                         value={nome}
                         onChange={(e) => impostaNome(e.target.value)}
-                        errore={erroriCampi.nome}
+                        errore={erroriCampi.nome ? t(erroriCampi.nome) : undefined}
                         disabled={invio}
                     />
                     <CampoTesto
-                        etichetta="Email"
+                        etichetta={t('text.email')}
                         type="email"
                         name="email"
                         autoComplete="email"
                         value={email}
                         onChange={(e) => impostaEmail(e.target.value)}
-                        errore={erroriCampi.email}
+                        errore={erroriCampi.email ? t(erroriCampi.email) : undefined}
                         disabled={invio}
                     />
                     <CampoTesto
-                        etichetta="Password"
+                        etichetta={t('text.password')}
                         type="password"
                         name="password"
                         autoComplete="new-password"
                         value={password}
                         onChange={(e) => impostaPassword(e.target.value)}
-                        suggerimento="Almeno 12 caratteri, al massimo 72 byte."
-                        errore={erroriCampi.password}
+                        suggerimento={t('text.atLeast12CharactersNoMore')}
+                        errore={erroriCampi.password ? t(erroriCampi.password) : undefined}
                         disabled={invio}
                     />
 
                     <div className={stile.azioni}>
                         <Bottone type="submit" disabled={invio}>
-                            {invio ? 'Registrazione in corso…' : 'Registrati ↗'}
+                            {invio ? t('registration.pending') : t('registration.submit')}
                         </Bottone>
                         <p className={stile.alternativa}>
-                            Hai già un account? <Link to="/accedi">Accedi</Link>
+                            {t('text.alreadyHaveAnAccount')}{' '}<Link to="/accedi">{t('text.logIn')}</Link>
                         </p>
                     </div>
                 </form>

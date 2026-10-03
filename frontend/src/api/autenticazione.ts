@@ -115,3 +115,13 @@ export async function registrati(dati: DatiRegistrazione): Promise<RispostaRegis
 
     return { utente };
 }
+
+export async function cambiaEmail(dati: { passwordCorrente: string; nuovaEmail: string; confermaEmail: string }): Promise<Utente> {
+    const risposta = await richiesta('/auth/email', { metodo: 'PATCH', corpo: dati });
+    const utente = eOggetto(risposta) ? comeUtente(risposta.utente) : null;
+    if (!utente) throw rispostaInattesa();
+    return utente;
+}
+export async function cambiaPassword(dati: { passwordCorrente: string; nuovaPassword: string; confermaPassword: string }): Promise<void> {
+    await richiesta('/auth/password', { metodo: 'PATCH', corpo: dati });
+}

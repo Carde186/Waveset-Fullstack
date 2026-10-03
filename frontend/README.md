@@ -175,7 +175,32 @@ Se il backend locale di test è su un'altra porta, imposta `API_TARGET` al suo U
 ## Limiti noti
 
 - Registrarsi da un browser che ha ancora un cookie di sessione revocato altrove dà 403 dal backend: il frontend mostra un messaggio controllato, ma la correzione spetta al backend.
-- Testi solo in italiano; il frontend è presente nel solo Compose di test. Esplora locale, Eventi e dettagli sono implementati. La mappa richiede configurazione Google; ricerca Apple live, Playlist, ADMIN e AI web restano da implementare.
+- Interfaccia disponibile in italiano e inglese; il frontend è presente nel solo Compose di test. Esplora locale, Eventi e dettagli sono implementati. La mappa richiede configurazione Google; ricerca Apple live, Playlist, ADMIN e AI web restano da implementare.
 - I test frontend usano un backend simulato. In questo incremento sono passati lint, typecheck, **96 test** e build sull'host, più la build Docker e la prova reale descritta sopra. Sono passati anche **385 test backend pertinenti**, senza scritture nel DB; la suite backend completa non è stata rieseguita.
 - Lo script Chrome/CDP è temporaneo e non incluso nel repository. Le sue asserzioni usano `textContent` per evitare l'effetto del CSS uppercase e consumano i corpi fetch diagnostici senza stamparli; nessuna correzione applicativa è stata necessaria.
 - Avvio da clone/volume vuoto, HTTPS e arresto dello stack non verificati in questo incremento. Dietro nginx i rate limit condividono l'IP del proxy perché `trust proxy` resta disattivato.
+
+## Impostazioni account e lingua IT/EN
+
+La voce **Impostazioni** nella navigazione USER apre `/impostazioni`. La pagina richiede una sessione autenticata; ADMIN non dispone dei form. Due form separati chiedono la password corrente e la conferma della nuova email/password. Gli input delle password sono mascherati, non vengono persistiti e vengono svuotati dopo la richiesta. Il cambio email aggiorna anche il profilo visualizzato, senza rifare il login.
+
+| Nuovo endpoint | Corpo JSON | Risposta |
+|---|---|---|
+| `PATCH /api/auth/email` | `passwordCorrente`, `nuovaEmail`, `confermaEmail` | 200 `{utente}` |
+| `PATCH /api/auth/password` | `passwordCorrente`, `nuovaPassword`, `confermaPassword` | 204 |
+
+Entrambi gli endpoint richiedono ruolo USER e le protezioni esistenti della sessione; con cookie sono obbligatori origine ammessa e `X-CSRF-Token`. La password corrente viene verificata con bcrypt. Email normalizzata e vincolo UNIQUE esistente gestiscono l'univocità anche per richieste concorrenti. Nuova password: almeno 12 caratteri Unicode, massimo 72 byte UTF-8, almeno una lettera e un numero o simbolo, nessun NUL; hash bcrypt con costo 12. Nessuna migrazione o modifica ai contratti esistenti di login/registrazione.
+
+Gli errori account usano codici controllati: 400 `INVALID_INPUT` con codici per campo oppure `CURRENT_PASSWORD_INVALID`; 409 `EMAIL_EXISTS`/`ACCOUNT_CHANGED`; 401 sessione scaduta, 403 accesso negato, 429 limite richieste (20 per utente in 15 minuti), 500 errore generico. Gli errori SQL non vengono propagati né registrati con dati delle credenziali.
+
+Le sessioni esistenti e il token CSRF restano validi dopo il cambio. I login successivi richiedono la nuova email/password. L'email viene sostituita immediatamente: il progetto non dispone di un flusso di verifica email tramite invio di token e non ne viene introdotto uno.
+
+`src/localizzazione/it.json` e `en.json` contengono le traduzioni tipizzate (es. `account.title`, `account.newEmail`, `language.label`, `maps.selected`). `errori-server.json` associa i messaggi del contratto di registrazione preesistente a chiavi controllate. `lingua.ts` gestisce interpolazioni, formattazione locale delle date e aggiornamento React senza ricaricamenti. `SelettoreLingua.tsx` è visibile nell'intestazione anche da anonimo; la scelta manuale predefinita IT viene salvata in `localStorage`, chiave `waveset.lingua`. Se lo storage non è disponibile, la scelta resta valida in memoria. Il documento aggiorna `lang` e titolo; dati del catalogo, filtri, URL e valori API restano indipendenti dalla lingua.
+
+I testi applicativi della mappa e i titoli dei marker cambiano senza ricreare la mappa o alterare selezione, camera e modalità. I controlli interni forniti dall'SDK Google usano la lingua scelta al primo caricamento: per aggiornare anche questi dopo un cambio lingua occorre un refresh. Lo SDK non viene caricato nuovamente durante il cambio lingua.
+
+### Verifica senza scritture nel DB
+
+- `node --test test/accountSenzaDb.test.js` dalla cartella backend verifica gli endpoint HTTP reali, bcrypt, nuove credenziali al login, CSRF, ruoli, errori e concorrenza con persistenza/sessioni esclusivamente in memoria.
+- I test frontend coprono i form, i messaggi già visibili al cambio lingua, la persistenza, i dizionari, l'assenza di testi statici JSX e la regressione dei marker durante il cambio lingua.
+- La prova Chrome sul frontend test usa risposte account/autenticazione simulate e verifica UI desktop/mobile, cambio lingua, refresh e login con credenziali aggiornate. Non prova un cambio credenziali sul MySQL reale e non crea utenti o sessioni nel DB.

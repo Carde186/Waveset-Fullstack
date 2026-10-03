@@ -32,6 +32,25 @@
     scrollbar-width: none;
 }
 
+.lingua {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.lingua select {
+    min-height: 44px;
+    padding: 8px;
+    border: 1px solid var(--campo-bordo);
+    border-radius: 8px;
+    background: var(--campo-sfondo);
+    color: var(--bianco);
+    font: inherit;
+}
+
 .voce {
     color: var(--navigazione);
     padding: 12px 15px;
@@ -47,7 +66,7 @@
 }
 
 .account {
-    margin-left: auto;
+    margin-left: 0;
     border: 1px solid var(--lime);
     background: transparent;
     color: var(--lime);

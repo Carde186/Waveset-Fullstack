@@ -1,6 +1,8 @@
+import { t } from '../localizzazione/lingua';
 import { Link, NavLink } from 'react-router';
 import { useAutenticazione } from '../autenticazione/contesto';
 import stile from './Intestazione.module.css';
+import { SelettoreLingua } from './SelettoreLingua';
 
 const classeVoce = ({ isActive }: { isActive: boolean }) =>
     isActive ? `${stile.voce} ${stile.attiva}` : stile.voce;
@@ -12,32 +14,29 @@ export function Intestazione() {
 
     return (
         <header className={stile.barra}>
-            <Link className={stile.marchio} to="/" aria-label="Waveset, pagina iniziale">
-                WAVESET<span>.</span>
+            <Link className={stile.marchio} to="/" aria-label={t('text.wavesetHomePage')}>
+                {t('text.waveset')}<span>.</span>
             </Link>
-            <nav className={stile.navigazione} aria-label="Principale">
+            <nav className={stile.navigazione} aria-label={t('text.main')}>
                 <NavLink to="/esplora" className={classeVoce}>
-                    Esplora
-                </NavLink>
+                    {t('text.explore')}</NavLink>
                 <NavLink to="/eventi" className={classeVoce}>
-                    Eventi
-                </NavLink>
+                    {t('text.events')}</NavLink>
                 {stato.tipo === 'autenticato' ? (
                     <NavLink to="/area" className={classeVoce}>
-                        Area
-                    </NavLink>
+                        {t('text.account')}</NavLink>
                 ) : null}
+                {stato.tipo === 'autenticato' && stato.utente.ruolo === 'USER' ? <NavLink to="/impostazioni" className={classeVoce}>{t('account.title')}</NavLink> : null}
                 {stato.tipo === 'anonimo' ? (
                     <>
                         <NavLink to="/accedi" className={classeVoce}>
-                            Accedi
-                        </NavLink>
+                            {t('text.logIn')}</NavLink>
                         <NavLink to="/registrati" className={classeVoce}>
-                            Registrati
-                        </NavLink>
+                            {t('text.signUp')}</NavLink>
                     </>
                 ) : null}
             </nav>
+            <SelettoreLingua />
             {stato.tipo === 'autenticato' ? (
                 <Link className={stile.account} to="/area">
                     {stato.utente.nome} ↗

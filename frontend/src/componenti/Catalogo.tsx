@@ -1,3 +1,4 @@
+import { t } from '../localizzazione/lingua';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import type { AlbumSintetico, ArtistaSintetico, Brano, BranoElenco } from '../api/catalogo';
@@ -10,7 +11,7 @@ function Decorazione() {
             <span className={stile.anello} aria-hidden="true">
                 ◌
             </span>
-            <span className={stile.didascalia}>Grafica Club</span>
+            <span className={stile.didascalia}>{t('text.clubArtwork')}</span>
         </>
     );
 }
@@ -47,12 +48,12 @@ export function CartaArtista({ artista }: { artista: ArtistaSintetico }) {
         <Link
             className={stile.carta}
             to={`/artisti/${artista.id}`}
-            aria-label={`Apri artista ${artista.nome}`}
+            aria-label={t('catalog.openArtist', { name: artista.nome })}
         >
             {/* La lista non fornisce crediti fotografici: usa arte astratta. */}
             <ArteCatalogo immagine={null} descrizione={artista.nome} />
             <div className={stile.copia}>
-                <small>Artista locale</small>
+                <small>{t('text.localArtist')}</small>
                 <h3>{artista.nome}</h3>
                 <span aria-hidden="true">↗</span>
             </div>
@@ -65,14 +66,14 @@ export function CartaAlbum({ album }: { album: AlbumSintetico }) {
         <Link
             className={stile.carta}
             to={`/album/${album.id}`}
-            aria-label={`Apri album ${album.titolo}`}
+            aria-label={t('catalog.openAlbum', { name: album.titolo })}
         >
             <ArteCatalogo
                 immagine={album.copertinaUrl}
-                descrizione={`Copertina di ${album.titolo}`}
+                descrizione={t('catalog.cover', { name: album.titolo })}
             />
             <div className={stile.copia}>
-                <small>Album locale</small>
+                <small>{t('text.localAlbum')}</small>
                 <h3>{album.titolo}</h3>
                 <span aria-hidden="true">↗</span>
             </div>
@@ -83,20 +84,20 @@ export function CartaAlbum({ album }: { album: AlbumSintetico }) {
 export function CartaBrano({ brano }: { brano: Brano }) {
     return (
         <article className={stile.cartaTesto}>
-            <small>Brano locale</small>
+            <small>{t('text.localTrack')}</small>
             <h3>
                 <Link to={`/brani/${brano.id}`}>{brano.titolo}</Link>
             </h3>
             <Link to={`/artisti/${brano.artista.id}`}>{brano.artista.nome}</Link>
             <p>{dataCatalogo(brano.dataPubblicazione)}</p>
-            {brano.collaboratori ? <p>Collaborazioni: {brano.collaboratori}</p> : null}
+            {brano.collaboratori ? <p>{t('text.collaborations')}{' '}{brano.collaboratori}</p> : null}
         </article>
     );
 }
 
 export function ListaBrani({ brani }: { brani: BranoElenco[] }) {
     return brani.length === 0 ? (
-        <p className="introduzione">Nessun brano disponibile.</p>
+        <p className="introduzione">{t('text.noTracksAvailable')}</p>
     ) : (
         <ul className={stile.brani}>
             {brani.map((brano) => (

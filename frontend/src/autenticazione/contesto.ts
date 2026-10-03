@@ -1,11 +1,12 @@
 import { createContext, useContext } from 'react';
+import type { Messaggio } from '../api/messaggi';
 import type { Utente } from '../api/tipi';
 
 export type StatoSessione =
     | { tipo: 'caricamento' }
     | { tipo: 'anonimo'; scaduta: boolean }
     | { tipo: 'autenticato'; utente: Utente }
-    | { tipo: 'errore'; messaggio: string };
+    | { tipo: 'errore'; messaggio: Messaggio };
 
 export interface ValoreContesto {
     stato: StatoSessione;
@@ -13,6 +14,7 @@ export interface ValoreContesto {
     esci: () => Promise<void>;
     esciDaTutti: () => Promise<void>;
     riprova: () => Promise<void>;
+    aggiornaUtente: (utente: Utente) => void;
 }
 
 export const ContestoAutenticazione = createContext<ValoreContesto | null>(null);

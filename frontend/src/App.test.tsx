@@ -156,7 +156,7 @@ describe('navigazione e stati', () => {
             within(navigazione)
                 .getAllByRole('link')
                 .map((l) => l.textContent),
-        ).toEqual(['Esplora', 'Eventi', 'Area']);
+        ).toEqual(['Esplora', 'Eventi', 'Area', 'Impostazioni account']);
         expect(screen.getByRole('link', { name: /Alice ↗/ })).toHaveAttribute('href', '/area');
     });
 

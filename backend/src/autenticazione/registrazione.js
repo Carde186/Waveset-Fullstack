@@ -139,6 +139,8 @@ function validaRegistrazione(corpo) {
 
 module.exports = {
     validaRegistrazione,
+    validaEmail,
+    validaPassword,
     DOMINIO_RISERVATO,
     PASSWORD_MIN_CARATTERI,
     PASSWORD_MAX_BYTE,

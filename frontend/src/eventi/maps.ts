@@ -1,3 +1,4 @@
+import { t, leggiLingua, type Chiave } from '../localizzazione/lingua';
 import type { Evento } from '../api/eventi';
 import stileMarker from './MarkerEvento.module.css';
 
@@ -44,12 +45,12 @@ export function ascoltaErroreGoogle(ascoltatore: () => void): () => void {
 // Una sola configurazione per pagina e una promessa condivisa anche nei due
 // setup di StrictMode. Il timeout di un consumatore non annulla altri consumer.
 export async function caricaMaps(chiave: string): Promise<LibrerieMaps> {
-    if (autenticazioneFallita) throw new Error('Google Maps non ha autorizzato la mappa.');
+    if (autenticazioneFallita) throw new Error('maps.auth');
     if (!librerie) {
         librerie = (async () => {
             const { setOptions, importLibrary } = await import('@googlemaps/js-api-loader');
             if (!configurato) {
-                setOptions({ key: chiave, v: 'weekly', language: 'it', region: 'IT' });
+                setOptions({ key: chiave, v: 'weekly', language: leggiLingua(), region: 'IT' });
                 configurato = true;
             }
             const [maps, marker, core] = await Promise.all([
@@ -63,10 +64,10 @@ export async function caricaMaps(chiave: string): Promise<LibrerieMaps> {
         const risultato = await Promise.race([
             librerie,
             new Promise<never>((_, rifiuta) => {
-                timer = setTimeout(() => rifiuta(new Error('Google Maps non risponde in tempo.')), TIMEOUT_MAPPA);
+                timer = setTimeout(() => rifiuta(new Error('maps.timeout')), TIMEOUT_MAPPA);
             }),
         ]);
-        if (autenticazioneFallita) throw new Error('Google Maps non ha autorizzato la mappa.');
+        if (autenticazioneFallita) throw new Error('maps.auth');
         return risultato;
     } finally { clearTimeout(timer); }
 }
@@ -101,7 +102,7 @@ function contenutoMarker(evento: Evento): HTMLElement {
 export function creaMappa({ contenitore, api, mapId, eventi, modalita, selezionato, suSelezione, suPronto, suErrore }: {
     contenitore: HTMLElement; api: LibrerieMaps; mapId: string; eventi: Evento[];
     modalita: ModalitaMappa; selezionato: number | null;
-    suSelezione: (id: number) => void; suPronto: () => void; suErrore: (messaggio: string) => void;
+    suSelezione: (id: number) => void; suPronto: () => void; suErrore: (messaggio: Chiave) => void;
 }) {
     let mappa: google.maps.Map;
     let modo = modalita;
@@ -125,7 +126,7 @@ export function creaMappa({ contenitore, api, mapId, eventi, modalita, seleziona
     function evidenzia() {
         for (const { evento, marker, contenuto } of markers) {
             marker.zIndex = evento.id === scelta ? 1000 : undefined;
-            marker.title = `${evento.id === scelta ? 'Selezionato: ' : ''}${evento.titolo}${evento.lineup[0] ? ` · ${evento.lineup[0].nome}` : ''}`;
+            marker.title = `${evento.id === scelta ? t('maps.selected') : ''}${evento.titolo}${evento.lineup[0] ? ` · ${evento.lineup[0].nome}` : ''}`;
             contenuto.classList.toggle(stileMarker.selezionato!, evento.id === scelta);
         }
     }
@@ -140,7 +141,7 @@ export function creaMappa({ contenitore, api, mapId, eventi, modalita, seleziona
             mapTypeControl: false, streetViewControl: false, fullscreenControl: true,
             keyboardShortcuts: true, gestureHandling: 'cooperative',
         });
-        timer = setTimeout(() => { if (!distrutta) suErrore('Google Maps non risponde in tempo.'); }, TIMEOUT_MAPPA);
+        timer = setTimeout(() => { if (!distrutta) suErrore('maps.timeout'); }, TIMEOUT_MAPPA);
         listenerTile = mappa.addListener('tilesloaded', () => {
             clearTimeout(timer);
             if (!distrutta) suPronto();
@@ -184,7 +185,7 @@ export function creaMappa({ contenitore, api, mapId, eventi, modalita, seleziona
                     rimuoviMappa();
                     inizializza(vista);
                 } else { mappa.setMapTypeId(tipo(modo)); }
-            } catch { suErrore('Non è possibile cambiare la modalità della mappa. Riprova.'); }
+            } catch { suErrore('maps.modeError'); }
         },
         seleziona(id: number | null) {
             if (distrutta || id === scelta) return;
@@ -193,6 +194,7 @@ export function creaMappa({ contenitore, api, mapId, eventi, modalita, seleziona
             const evento = eventi.find((e) => e.id === id);
             if (evento?.coordinate) mappa.panTo(evento.coordinate);
         },
+        aggiornaTesti: evidenzia,
         distruggi() { distrutta = true; rimuoviMappa(); },
     };
 }

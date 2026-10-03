@@ -1,3 +1,4 @@
+import { t } from '../localizzazione/lingua';
 import { useCallback, useState } from 'react';
 import {
     cercaCatalogo,
@@ -21,7 +22,7 @@ function RisultatiRicerca({ query }: { query: string }) {
     const carica = useCallback(() => cercaCatalogo(query), [query]);
     const { stato, riprova } = useRisorsa(query, carica, DEBOUNCE_MS);
     if (stato.tipo === 'caricamento')
-        return <StatoCaricamento testo="Cerco nel catalogo…" livelloTitolo={3} />;
+        return <StatoCaricamento testo={t('text.searchingTheCatalog')} livelloTitolo={3} />;
     if (stato.tipo === 'errore')
         return (
             <StatoErrore
@@ -34,16 +35,16 @@ function RisultatiRicerca({ query }: { query: string }) {
     if (artisti.length === 0 && brani.length === 0)
         return (
             <StatoVuoto
-                occhiello="Ricerca locale"
-                titolo="Nessun risultato."
-                messaggio="Prova con un altro nome o titolo."
+                occhiello={t('text.localSearch')}
+                titolo={t('text.noResults')}
+                messaggio={t('text.tryAnotherNameOrTitle')}
                 livelloTitolo={3}
             />
         );
     return (
         <>
             <div className="sezione">
-                <h3>Artisti</h3>
+                <h3>{t('text.artists')}</h3>
             </div>
             {artisti.length ? (
                 <div className={stile.griglia}>
@@ -52,10 +53,10 @@ function RisultatiRicerca({ query }: { query: string }) {
                     ))}
                 </div>
             ) : (
-                <p>Nessun artista trovato.</p>
+                <p>{t('text.noArtistsFound')}</p>
             )}
             <div className="sezione">
-                <h3>Brani</h3>
+                <h3>{t('text.tracks')}</h3>
             </div>
             {brani.length ? (
                 <div className={stile.griglia}>
@@ -64,9 +65,9 @@ function RisultatiRicerca({ query }: { query: string }) {
                     ))}
                 </div>
             ) : (
-                <p>Nessun brano trovato.</p>
+                <p>{t('text.noTracksFound')}</p>
             )}
-            <p className={stile.nota}>Fino a 20 artisti e 20 brani del catalogo locale.</p>
+            <p className={stile.nota}>{t('text.upTo20ArtistsAnd20')}</p>
         </>
     );
 }
@@ -75,7 +76,7 @@ function ArtistiPerGenere({ genereId }: { genereId: number | undefined }) {
     const carica = useCallback(() => elencaArtisti(genereId), [genereId]);
     const { stato, riprova } = useRisorsa(`genere:${genereId ?? 'tutti'}`, carica);
     if (stato.tipo === 'caricamento')
-        return <StatoCaricamento testo="Carico gli artisti…" livelloTitolo={3} />;
+        return <StatoCaricamento testo={t('text.loadingArtists')} livelloTitolo={3} />;
     if (stato.tipo === 'errore')
         return (
             <StatoErrore
@@ -87,9 +88,9 @@ function ArtistiPerGenere({ genereId }: { genereId: number | undefined }) {
     if (stato.dati.length === 0)
         return (
             <StatoVuoto
-                occhiello="Catalogo locale"
-                titolo="Nessun artista disponibile."
-                messaggio="Scegli un altro genere o torna a Tutti."
+                occhiello={t('text.localCatalog')}
+                titolo={t('text.noArtistsAvailable')}
+                messaggio={t('text.chooseAnotherGenreOrGoBack')}
                 livelloTitolo={3}
             />
         );
@@ -112,34 +113,32 @@ export function Esplora() {
     return (
         <section className="pagina">
             <Vetrina>
-                <div className="occhiello">Catalogo locale</div>
-                <h1 className="titolo">Esplora.</h1>
+                <div className="occhiello">{t('text.localCatalog')}</div>
+                <h1 className="titolo">{t('text.explore3')}</h1>
                 <p>
-                    Artisti, brani e album già presenti su Waveset. Parti da un genere o cerca un
-                    nome.
-                </p>
+                    {t('text.artistsTracksAndAlbumsAlreadyOn')}</p>
             </Vetrina>
 
-            <section className={stile.strumenti} aria-label="Ricerca nel catalogo">
-                <h2>Cerca artisti e brani</h2>
+            <section className={stile.strumenti} aria-label={t('text.catalogSearch')}>
+                <h2>{t('text.findArtistsAndTracks')}</h2>
                 <CampoTesto
-                    etichetta="Cerca nel catalogo locale"
+                    etichetta={t('text.searchTheLocalCatalog')}
                     type="search"
                     value={ricerca}
                     onChange={(e) => impostaRicerca(e.target.value)}
                     maxLength={MASSIMO_RICERCA}
-                    suggerimento="Da 2 a 100 caratteri. Cerca artisti per nome e brani per titolo."
-                    errore={troppoLunga ? 'Usa al massimo 100 caratteri.' : null}
+                    suggerimento={t('text.2To100CharactersSearchArtists')}
+                    errore={troppoLunga ? t('catalog.searchMax') : null}
                 />
                 {query.length > 0 ? (
-                    <section aria-label="Risultati della ricerca">
+                    <section aria-label={t('text.searchResults')}>
                         <div className="sezione">
-                            <h2>Risultati nel catalogo locale</h2>
+                            <h2>{t('text.resultsInTheLocalCatalog')}</h2>
                         </div>
                         {query.length < MINIMO_RICERCA ? (
-                            <p role="status">Scrivi almeno 2 caratteri.</p>
+                            <p role="status">{t('text.enterAtLeast2Characters')}</p>
                         ) : troppoLunga ? (
-                            <p role="alert">La ricerca è troppo lunga.</p>
+                            <p role="alert">{t('text.yourSearchIsTooLong')}</p>
                         ) : (
                             <RisultatiRicerca query={query} />
                         )}
@@ -147,16 +146,14 @@ export function Esplora() {
                 ) : null}
             </section>
 
-            <section aria-label="Artisti per genere">
+            <section aria-label={t('text.artistsByGenre')}>
                 <div className="sezione">
-                    <h2>Artisti per genere</h2>
+                    <h2>{t('text.artistsByGenre')}</h2>
                 </div>
                 <p className="introduzione">
-                    Il genere filtra solo questo elenco. La ricerca cerca in tutto il catalogo
-                    locale.
-                </p>
+                    {t('text.theGenreOnlyFiltersThisList')}</p>
                 {generi.stato.tipo === 'caricamento' ? (
-                    <StatoCaricamento testo="Carico i generi…" livelloTitolo={3} />
+                    <StatoCaricamento testo={t('text.loadingGenres')} livelloTitolo={3} />
                 ) : generi.stato.tipo === 'errore' ? (
                     <StatoErrore
                         messaggio={erroreCatalogo(generi.stato.causa)}
@@ -168,15 +165,14 @@ export function Esplora() {
                         <div
                             className={stile.generi}
                             role="group"
-                            aria-label="Filtra gli artisti per genere"
+                            aria-label={t('text.filterArtistsByGenre')}
                         >
                             <Bottone
                                 variante={genereId === undefined ? 'primario' : 'contorno'}
                                 aria-pressed={genereId === undefined}
                                 onClick={() => impostaGenereId(undefined)}
                             >
-                                Tutti
-                            </Bottone>
+                                {t('text.all')}</Bottone>
                             {generi.stato.dati.map((g) => (
                                 <Bottone
                                     key={g.id}
@@ -193,9 +189,7 @@ export function Esplora() {
                 )}
             </section>
             <div className="piede">
-                Esplora il catalogo locale. I dati dell&apos;ambiente di prova includono artisti e
-                pubblicazioni dimostrativi.
-            </div>
+                {t('text.exploreTheLocalCatalogTestEnvironment')}</div>
         </section>
     );
 }
