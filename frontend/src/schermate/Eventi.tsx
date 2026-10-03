@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { elencaEventi, type Evento, type FiltroEventi } from '../api/eventi';
 import { ErroreApi } from '../api/client';
 import { useAutenticazione } from '../autenticazione/contesto';
@@ -12,7 +12,8 @@ import { InformazioniEvento, LineupEvento } from '../eventi/InformazioniEvento';
 import { MappaEventi } from '../eventi/MappaEventi';
 import stile from '../eventi/Eventi.module.css';
 
-function Elenco({ eventi }: { eventi: Evento[] }) {
+function Elenco({ eventi, filtro }: { eventi: Evento[]; filtro: FiltroEventi }) {
+    const naviga = useNavigate();
     const [scelta, impostaScelta] = useState<number | null>(null);
     const selezionato = eventi.some((e) => e.id === scelta) ? scelta : null;
     const selezionaDaMappa = useCallback((id: number) => {
@@ -20,7 +21,8 @@ function Elenco({ eventi }: { eventi: Evento[] }) {
         const elemento = document.getElementById(`evento-${id}`);
         elemento?.scrollIntoView?.({ block: 'nearest', behavior: 'auto' });
         elemento?.focus({ preventScroll: true });
-    }, []);
+        void naviga(`/eventi/${id}?filtro=${filtro}`);
+    }, [filtro, naviga]);
     const selezionaDaLista = useCallback((id: number) => impostaScelta(id), []);
     const attuale = eventi.find((e) => e.id === selezionato);
     return <>
@@ -31,7 +33,7 @@ function Elenco({ eventi }: { eventi: Evento[] }) {
                 <h2>Prossimi eventi</h2>
                 <ul className={stile.lista}>{eventi.map((e) => <li key={e.id}>
                     <article id={`evento-${e.id}`} tabIndex={-1} className={`${stile.carta} ${selezionato === e.id ? stile.selezionata : ''}`} aria-label={e.titolo}>
-                        <h3><Link to={`/eventi/${e.id}`}>{e.titolo} ↗</Link></h3>
+                        <h3><Link to={`/eventi/${e.id}?filtro=${filtro}`}>{e.titolo} ↗</Link></h3>
                         <InformazioniEvento evento={e} />
                         <LineupEvento evento={e} />
                         {e.coordinate ? <Bottone variante="contorno" aria-pressed={selezionato === e.id} onClick={() => selezionaDaLista(e.id)}>Mostra sulla mappa: {e.titolo}</Bottone>
@@ -57,7 +59,7 @@ function EventiCaricati({ filtro, utente }: { filtro: FiltroEventi; utente: numb
     }
     if (!stato.dati.length) return <StatoVuoto occhiello="Eventi" titolo="Nessun evento in arrivo."
         messaggio={filtro === 'seguiti' ? 'Non ci sono eventi per gli artisti che segui. Prova il filtro Tutti.' : 'Non ci sono eventi pubblicati in arrivo.'} livelloTitolo={2} />;
-    return <Elenco eventi={stato.dati} />;
+    return <Elenco eventi={stato.dati} filtro={filtro} />;
 }
 
 export function Eventi() {

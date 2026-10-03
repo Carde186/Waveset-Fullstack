@@ -1,4 +1,5 @@
 import type { Evento } from '../api/eventi';
+import stileMarker from './MarkerEvento.module.css';
 
 export const MODALITA_MAPPA = ['standard', 'scura', 'satellite', 'ibrida'] as const;
 export type ModalitaMappa = typeof MODALITA_MAPPA[number];
@@ -70,6 +71,31 @@ export async function caricaMaps(chiave: string): Promise<LibrerieMaps> {
     } finally { clearTimeout(timer); }
 }
 
+function contenutoMarker(evento: Evento): HTMLElement {
+    const artista = evento.lineup[0];
+    const contenuto = document.createElement('span');
+    contenuto.className = stileMarker.marker!;
+    contenuto.setAttribute('aria-hidden', 'true'); // Il titolo accessibile è sul marker Google.
+    const avatar = document.createElement('span');
+    avatar.className = stileMarker.avatar!;
+    const iniziale = document.createElement('span');
+    iniziale.textContent = Array.from(artista?.nome.trim() ?? '')[0]?.toLocaleUpperCase('it') ?? '♪';
+    avatar.append(iniziale);
+    if (artista?.immagineUrl) {
+        const foto = document.createElement('img');
+        foto.alt = '';
+        foto.width = 36;
+        foto.height = 36;
+        foto.decoding = 'async';
+        // L'iniziale resta sotto la foto anche durante il caricamento.
+        foto.addEventListener('error', () => foto.remove(), { once: true });
+        foto.src = artista.immagineUrl;
+        avatar.append(foto);
+    }
+    contenuto.append(avatar);
+    return contenuto;
+}
+
 // Adattatore imperativo: il cambio modalità preserva la vista e non avvia
 // richieste al backend. Nessun HTML della risposta API viene inserito nella mappa.
 export function creaMappa({ contenitore, api, mapId, eventi, modalita, selezionato, suSelezione, suPronto, suErrore }: {
@@ -83,7 +109,7 @@ export function creaMappa({ contenitore, api, mapId, eventi, modalita, seleziona
     let distrutta = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let listenerTile: google.maps.MapsEventListener | undefined;
-    let markers: { evento: Evento; marker: google.maps.marker.AdvancedMarkerElement; pin: google.maps.marker.PinElement; click: () => void }[] = [];
+    let markers: { evento: Evento; marker: google.maps.marker.AdvancedMarkerElement; contenuto: HTMLElement; click: () => void }[] = [];
 
     function rimuoviMappa() {
         clearTimeout(timer);
@@ -97,11 +123,10 @@ export function creaMappa({ contenitore, api, mapId, eventi, modalita, seleziona
         contenitore.replaceChildren();
     }
     function evidenzia() {
-        for (const { evento, marker, pin } of markers) {
+        for (const { evento, marker, contenuto } of markers) {
             marker.zIndex = evento.id === scelta ? 1000 : undefined;
             marker.title = `${evento.id === scelta ? 'Selezionato: ' : ''}${evento.titolo}${evento.lineup[0] ? ` · ${evento.lineup[0].nome}` : ''}`;
-            pin.background = evento.id === scelta ? '#d8ff58' : '#80e9a7';
-            pin.scale = evento.id === scelta ? 1.3 : 1;
+            contenuto.classList.toggle(stileMarker.selezionato!, evento.id === scelta);
         }
     }
     function tipo(m: ModalitaMappa) {
@@ -123,17 +148,16 @@ export function creaMappa({ contenitore, api, mapId, eventi, modalita, seleziona
         const bounds = new api.core.LatLngBounds();
         for (const evento of eventi) {
             if (!evento.coordinate) continue;
-            const pin = new api.marker.PinElement({
-                background: '#80e9a7', borderColor: '#132016', glyphColor: '#132016',
-                glyphText: evento.lineup[0]?.nome.slice(0, 1).toUpperCase() ?? '•',
-            });
+            // Un nodo distinto per evento: AdvancedMarkerElement sposta il DOM,
+            // quindi non va condiviso neppure quando l'artista è lo stesso.
+            const contenuto = contenutoMarker(evento);
             const marker = new api.marker.AdvancedMarkerElement({
                 map: mappa, position: evento.coordinate, title: evento.titolo, gmpClickable: true,
             });
-            marker.append(pin);
+            marker.append(contenuto);
             const click = () => { if (!distrutta) suSelezione(evento.id); };
             marker.addEventListener('gmp-click', click);
-            markers.push({ evento, marker, pin, click });
+            markers.push({ evento, marker, contenuto, click });
             bounds.extend(evento.coordinate);
         }
         if (!vista && markers.length === 1) {

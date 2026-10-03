@@ -1,0 +1,38 @@
+.marker {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+}
+
+.avatar {
+    position: relative;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 40px;
+    height: 40px;
+    overflow: hidden;
+    border: 2px solid var(--bianco);
+    border-radius: 50%;
+    background: var(--su-lime);
+    color: var(--lime);
+    font: 700 20px/1 var(--carattere);
+    box-shadow: 0 0 0 1px var(--su-lime), 0 3px 8px var(--barra-sfondo);
+}
+
+.avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.selezionato .avatar,
+.marker:hover .avatar,
+:global(gmp-advanced-marker:focus-within) .avatar {
+    border-color: var(--lime);
+    box-shadow: 0 0 0 2px var(--su-lime), 0 0 0 4px var(--lime);
+}

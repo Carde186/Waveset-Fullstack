@@ -32,32 +32,49 @@ export function MappaEventi({ eventi, selezionato, suSelezione }: {
         if (!chiave || !mapId || !conCoordinate) return;
         let attivo = true;
         let locale: ReturnType<typeof creaMappa> | null = null;
+        let authFallita = false;
+        let ripetuto = false;
+        let timerRetry: ReturnType<typeof setTimeout> | undefined;
         const fallisci = (messaggio: string) => {
             if (!attivo) return;
+            clearTimeout(timerRetry);
             locale?.distruggi();
+            locale = null;
             controllo.current = null;
+            // Una risposta Google temporaneamente lenta/fallita non deve
+            // richiedere un click. Un solo retry, con lo stesso SDK condiviso.
+            if (!authFallita && !ripetuto && messaggio.includes('in tempo')) {
+                ripetuto = true;
+                impostaEsito({ eventi, tentativo, stato: { tipo: 'caricamento' } });
+                timerRetry = setTimeout(carica, 500);
+                return;
+            }
             impostaEsito({ eventi, tentativo, stato: { tipo: 'errore', messaggio } });
         };
-        let authFallita = false;
+        function carica() {
+            if (!attivo || authFallita) return;
+            void caricaMaps(chiave!).then((api) => {
+                if (!attivo || authFallita) return;
+                try {
+                    locale = inizializza(api, () => {
+                        if (attivo && !authFallita) impostaEsito({ eventi, tentativo, stato: { tipo: 'pronto' } });
+                    }, fallisci);
+                    controllo.current = locale;
+                } catch { fallisci('Non è possibile inizializzare Google Maps. Riprova.'); }
+            }, (errore: unknown) => {
+                if (!authFallita) fallisci(errore instanceof Error && errore.message.includes('in tempo')
+                    ? 'Google Maps non risponde in tempo. Riprova.'
+                    : 'Non è possibile caricare Google Maps. Riprova.');
+            });
+        }
         const annullaAuth = ascoltaErroreGoogle(() => {
             authFallita = true;
             fallisci('Google Maps non ha autorizzato la mappa. Gli eventi restano consultabili nella lista.');
         });
-        if (!authFallita) void caricaMaps(chiave).then((api) => {
-            if (!attivo || authFallita) return;
-            try {
-                locale = inizializza(api, () => {
-                    if (attivo && !authFallita) impostaEsito({ eventi, tentativo, stato: { tipo: 'pronto' } });
-                }, fallisci);
-                controllo.current = locale;
-            } catch { fallisci('Non è possibile inizializzare Google Maps. Riprova.'); }
-        }, (errore: unknown) => {
-            if (!authFallita) fallisci(errore instanceof Error && errore.message.includes('in tempo')
-                ? 'Google Maps non risponde in tempo. Riprova.'
-                : 'Non è possibile caricare Google Maps. Riprova.');
-        });
+        carica();
         return () => {
             attivo = false;
+            clearTimeout(timerRetry);
             annullaAuth();
             locale?.distruggi();
             controllo.current = null;

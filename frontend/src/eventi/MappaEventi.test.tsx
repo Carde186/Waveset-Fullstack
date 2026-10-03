@@ -1,10 +1,10 @@
 import { StrictMode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { Evento } from '../api/eventi';
 import { MappaEventi } from './MappaEventi';
-import { STORAGE_MAPPA } from './maps';
+import { STORAGE_MAPPA, TIMEOUT_MAPPA } from './maps';
 
 const loader = vi.hoisted(() => ({ setOptions: vi.fn(), importLibrary: vi.fn() }));
 vi.mock('@googlemaps/js-api-loader', () => loader);
@@ -81,10 +81,69 @@ test('StrictMode: una mappa attiva, marker selezionabile e modalità salvata', a
     expect(screen.getByRole('combobox', { name: 'Modalità mappa' })).toHaveValue('scura');
 });
 
-test('autenticazione Google fallita: messaggio controllato', async () => {
-    render(<MappaEventi eventi={[EVENTO]} selezionato={null} suSelezione={vi.fn()} />);
-    await waitFor(() => expect(MappaFinta.create.length).toBeGreaterThan(0));
-    fireEvent(window, new Event('focus'));
-    window.gm_authFailure?.();
-    expect(await screen.findByRole('alert')).toHaveTextContent('non ha autorizzato');
+test('timeout transitorio: recupera automaticamente senza ricaricare lo SDK', async () => {
+    vi.useFakeTimers();
+    try {
+        render(<MappaEventi eventi={[EVENTO]} selezionato={5} suSelezione={vi.fn()} />);
+        await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+        expect(MappaFinta.create).toHaveLength(1);
+        const importazioni = loader.importLibrary.mock.calls.length;
+        await act(async () => { await vi.advanceTimersByTimeAsync(TIMEOUT_MAPPA); });
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(screen.getByText('Carico Google Maps…')).toBeInTheDocument();
+        expect(MarkerFinto.create[0]?.map).toBeNull();
+        fireEvent.change(screen.getByRole('combobox', { name: 'Modalità mappa' }), { target: { value: 'scura' } });
+        await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+        expect(MappaFinta.create).toHaveLength(2);
+        expect(MappaFinta.create.at(-1)?.opzioni.colorScheme).toBe('DARK');
+        expect(loader.importLibrary).toHaveBeenCalledTimes(importazioni);
+        expect(MarkerFinto.create.at(-1)?.zIndex).toBe(1000);
+        await act(async () => { MappaFinta.create.at(-1)?.eventi.get('tilesloaded')?.(); });
+        await act(async () => { await vi.advanceTimersByTimeAsync(TIMEOUT_MAPPA * 2); });
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(screen.queryByText('Carico Google Maps…')).not.toBeInTheDocument();
+        expect(MappaFinta.create).toHaveLength(2);
+    } finally { vi.useRealTimers(); }
+});
+
+test('rete persistentemente assente: un solo retry automatico, poi fallback e retry manuale', async () => {
+    vi.useFakeTimers();
+    try {
+        render(<MappaEventi eventi={[EVENTO]} selezionato={null} suSelezione={vi.fn()} />);
+        await act(async () => { await vi.advanceTimersByTimeAsync(TIMEOUT_MAPPA * 2 + 500); });
+        expect(MappaFinta.create).toHaveLength(2);
+        expect(screen.getByRole('alert')).toHaveTextContent('Google Maps non risponde in tempo');
+        await act(async () => { await vi.advanceTimersByTimeAsync(TIMEOUT_MAPPA * 3); });
+        expect(MappaFinta.create).toHaveLength(2);
+        fireEvent.click(screen.getByRole('button', { name: 'Riprova mappa' }));
+        await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+        expect(MappaFinta.create).toHaveLength(3);
+        await act(async () => { MappaFinta.create.at(-1)?.eventi.get('tilesloaded')?.(); });
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    } finally { vi.useRealTimers(); }
+});
+
+test('smontaggio durante attesa retry: nessuna nuova mappa', async () => {
+    vi.useFakeTimers();
+    try {
+        const vista = render(<MappaEventi eventi={[EVENTO]} selezionato={null} suSelezione={vi.fn()} />);
+        await act(async () => { await vi.advanceTimersByTimeAsync(TIMEOUT_MAPPA); });
+        vista.unmount();
+        await act(async () => { await vi.advanceTimersByTimeAsync(TIMEOUT_MAPPA * 2); });
+        expect(MappaFinta.create).toHaveLength(1);
+        expect(MarkerFinto.create.every((m) => m.map === null && m.listeners.size === 0)).toBe(true);
+    } finally { vi.useRealTimers(); }
+});
+
+test('autenticazione Google fallita: errore immediato senza retry automatico', async () => {
+    vi.useFakeTimers();
+    try {
+        render(<MappaEventi eventi={[EVENTO]} selezionato={null} suSelezione={vi.fn()} />);
+        await act(async () => { await vi.advanceTimersByTimeAsync(TIMEOUT_MAPPA); });
+        expect(MappaFinta.create).toHaveLength(1);
+        await act(async () => { window.gm_authFailure?.(); });
+        expect(screen.getByRole('alert')).toHaveTextContent('non ha autorizzato');
+        await act(async () => { await vi.advanceTimersByTimeAsync(TIMEOUT_MAPPA * 3); });
+        expect(MappaFinta.create).toHaveLength(1);
+    } finally { vi.useRealTimers(); }
 });

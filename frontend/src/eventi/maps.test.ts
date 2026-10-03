@@ -1,6 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 import type { Evento } from '../api/eventi';
 import type { LibrerieMaps } from './maps';
+import stileMarker from './MarkerEvento.module.css';
 
 const loader = vi.hoisted(() => ({ setOptions: vi.fn(), importLibrary: vi.fn() }));
 vi.mock('@googlemaps/js-api-loader', () => loader);
@@ -37,29 +38,20 @@ class MarkerFinto {
     title: string;
     zIndex: number | undefined;
     callbacks = new Map<string, () => void>();
-    pin: PinFinto | undefined;
+    contenuto: HTMLElement | undefined;
     constructor(opzioni: { map: unknown; title: string }) {
         this.map = opzioni.map;
         this.title = opzioni.title;
         MarkerFinto.create.push(this);
     }
     addEventListener(nome: string, cb: () => void) { this.callbacks.set(nome, cb); }
-    append(pin: PinFinto) { this.pin = pin; }
+    append(contenuto: HTMLElement) { this.contenuto = contenuto; }
     removeEventListener(nome: string) { this.callbacks.delete(nome); }
     click() { this.callbacks.get('gmp-click')?.(); }
 }
-class PinFinto {
-    background: string;
-    scale = 1;
-    glyphText: string;
-    constructor(opzioni: { background: string; glyphText: string }) {
-        this.background = opzioni.background;
-        this.glyphText = opzioni.glyphText;
-    }
-}
 class BoundsFinti { extend() {} }
 const api = {
-    maps: { Map: MappaFinta }, marker: { AdvancedMarkerElement: MarkerFinto, PinElement: PinFinto },
+    maps: { Map: MappaFinta }, marker: { AdvancedMarkerElement: MarkerFinto },
     core: { ColorScheme: { DARK: 'DARK', LIGHT: 'LIGHT' }, LatLngBounds: BoundsFinti,
         event: { clearInstanceListeners(m: MappaFinta) { m.callbacks.clear(); } } },
 } as unknown as LibrerieMaps;
@@ -83,12 +75,12 @@ test('quattro modalità, persistenza e ripristino', async () => {
     MappaFinta.create[0]?.callbacks.get('tilesloaded')?.();
     expect(pronto).toHaveBeenCalledOnce();
     expect(MarkerFinto.create[0]?.title).toContain('Nova');
-    expect(MarkerFinto.create[0]?.pin?.glyphText).toBe('N');
+    expect(MarkerFinto.create[0]?.contenuto).toHaveTextContent('N');
     MarkerFinto.create[0]?.click();
     expect(seleziona).toHaveBeenCalledWith(5);
     m.seleziona(5);
     expect(MarkerFinto.create[0]?.zIndex).toBe(1000);
-    expect(MarkerFinto.create[0]?.pin?.background).toBe('#d8ff58');
+    expect(MarkerFinto.create[0]?.contenuto).toHaveClass(stileMarker.selezionato!);
     m.modalita('satellite');
     expect(MappaFinta.create).toHaveLength(1);
     expect(MappaFinta.create[0]?.options.mapTypeId).toBe('satellite');
@@ -113,6 +105,42 @@ test('solo eventi con coordinate diventano marker', async () => {
         eventi: [EVENTO, { ...EVENTO, id: 6, coordinate: null }], modalita: 'standard',
         selezionato: null, suSelezione: vi.fn(), suPronto: vi.fn(), suErrore: vi.fn() });
     expect(MarkerFinto.create).toHaveLength(1);
+    m.distruggi();
+});
+
+test('foto del primo artista ripetuta per evento, fallback su errore e selezione indipendente', async () => {
+    const { creaMappa } = await import('./maps');
+    const artista = { id: 2, nome: 'Nova', immagineUrl: 'https://catalogo.waveset.test/nova.jpg' };
+    const seleziona = vi.fn();
+    const m = creaMappa({ contenitore: document.createElement('div'), api, mapId: 'id',
+        eventi: [
+            { ...EVENTO, lineup: [artista, { id: 3, nome: 'Secondario', immagineUrl: null }] },
+            { ...EVENTO, id: 6, lineup: [artista] },
+            { ...EVENTO, id: 7 },
+        ], modalita: 'standard', selezionato: null,
+        suSelezione: seleziona, suPronto: vi.fn(), suErrore: vi.fn() });
+    const [primo, secondo, placeholder] = MarkerFinto.create;
+    const foto = primo!.contenuto!.querySelector('img')!;
+    expect(foto).toHaveAttribute('src', artista.immagineUrl);
+    expect(foto).toHaveAttribute('width', '36');
+    expect(foto).toHaveAttribute('alt', '');
+    expect(secondo!.contenuto!.querySelector('img')).toHaveAttribute('src', artista.immagineUrl);
+    expect(primo!.contenuto).not.toBe(secondo!.contenuto);
+    expect(placeholder!.contenuto).toHaveTextContent('N');
+    expect(placeholder!.contenuto!.querySelector('img')).toBeNull();
+    foto.dispatchEvent(new Event('error'));
+    expect(primo!.contenuto!.querySelector('img')).toBeNull();
+    expect(primo!.contenuto).toHaveTextContent('N');
+    expect(secondo!.contenuto!.querySelector('img')).not.toBeNull();
+    secondo!.click();
+    expect(seleziona).toHaveBeenCalledWith(6);
+    m.seleziona(6);
+    expect(secondo!.contenuto).toHaveClass(stileMarker.selezionato!);
+    expect(primo!.contenuto).not.toHaveClass(stileMarker.selezionato!);
+    expect(secondo!.title).toContain('Selezionato:');
+    m.modalita('scura');
+    expect(MarkerFinto.create.at(-2)!.contenuto).toHaveClass(stileMarker.selezionato!);
+    expect(MarkerFinto.create.at(-2)!.contenuto!.querySelector('img')).toHaveAttribute('src', artista.immagineUrl);
     m.distruggi();
 });
 
