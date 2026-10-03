@@ -525,6 +525,47 @@ node --env-file=../.env.test --test test/ticketmasterSyncPersistenza.test.js
 
 La seconda prova usa MySQL reale, risposte Ticketmaster controllate, un solo artista temporaneo e relativi eventi. Non crea utenti/sessioni/follow, non cambia seed o artisti esistenti; elimina esclusivamente gli ID temporanei e verifica lo stato globale in una transazione annullata. Il test non equivale a una prova Discovery con chiave reale. Senza `TICKETMASTER_API_KEY` configurata la verifica live resta da eseguire con un lotto limitato, ripetendo il comando e confrontando ID, collegamenti e numero di righe.
 
+## Come ottenere la chiave API Ticketmaster
+
+Per abilitare la sincronizzazione automatica degli eventi da Ticketmaster è necessaria una chiave API. Segui questi passi:
+
+1. **Vai sul portale sviluppatori Ticketmaster**  
+   URL: [https://developer.ticketmaster.com/](https://developer.ticketmaster.com/)
+
+2. **Crea un account**  
+   - Clicca su “Sign Up” o “Register”.
+   - Compila il form con email, password e dati richiesti.
+   - Verifica l’email se richiesto.
+
+3. **Accedi e crea una nuova applicazione**  
+   - Dopo il login, vai in alto a destra sul profilo.
+   - Andare ancora in alto a destra, sempre sul profilo, e cliccare “My Apps”.
+   - Aggiungere una nuova App.
+   - Compila:
+     - nome applicazione (es. “Waveset);
+     - descrizione e sito web non sono obbligatori
+
+4. **Ottieni la chiave API**  
+   - Una volta creata l’app, cliccare su di essa e salvare la chaive **Consumer Key**
+
+5. **Configura la chiave in ambiente locale**  
+   - Per lo sviluppo, nel file `.env` (solo locale, non versionato) aggiungi:
+     ```env
+     TICKETMASTER_API_KEY=tua_chiave_reale
+     ```
+   - Per eseguire i test che usano Ticketmaster, copia la stessa chiave anche in `.env.test` (anch’esso non versionato).
+   - Non condividere mai questa chiave nel repository o in luoghi pubblici.
+
+Dopo aver configurato la chiave, puoi eseguire la sincronizzazione manuale con:
+
+```bash
+npm run eventi:sync
+```
+
+Gli eventi importati da Ticketmaster saranno soggetti a revisione ADMIN prima della pubblicazione, come descritto nella sezione “Eventi dinamici: Ticketmaster”.
+
+
+
 ## Limiti noti
 
 Cose **non verificate** o con difetti noti:

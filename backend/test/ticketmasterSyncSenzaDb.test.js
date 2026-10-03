@@ -40,6 +40,16 @@ test('stati Ticketmaster e date TBA/TBD sono preservati, senza inventare date', 
     for (const code of ['onsale', 'offsale', 'canceled', 'postponed', 'rescheduled']) assert.equal(normalizza(evento({ dates: { status: { code }, start: { dateTBD: true } } }), artisti).stato_fonte, code);
     assert.equal(normalizza(evento({ dates: { start: { dateTBA: true } } }), artisti).data_incerta, true);
 });
+test('snapshot revisione contiene solo ID, nome e URL pubblici delle attraction', () => {
+    const e = normalizza(evento({ _embedded: { attractions: [
+        { id: 'attr-1', name: 'Nome artista', url: 'https://www.ticketmaster.com/artist/1', secret: 'mai salvato' },
+        { id: 'attr-2', name: 'Altro', url: 'https://ticketmaster.com/?apikey=mai-salvato' },
+        { id: 'attr-3', name: 'Altro', url: 'javascript:alert(1)' },
+    ] } }), artisti);
+    assert.deepEqual(e.attractions[0], { id: 'attr-1', nome: 'Nome artista', url: 'https://www.ticketmaster.com/artist/1' });
+    assert.equal(e.attractions[1].url, null); assert.equal(e.attractions[2].url, null);
+    assert(!JSON.stringify(e).includes('mai salvato')); assert(!JSON.stringify(e).includes('apikey'));
+});
 test('configurazione: intervallo/default, disabilitazione, limiti validati senza valori riservati', () => {
     assert.equal(config.intervalloMs, 28800000); assert.equal(configurazione({}).configurata, false);
     assert.equal(configurazione({ TICKETMASTER_SYNC_ENABLED: 'false' }).attiva, false);

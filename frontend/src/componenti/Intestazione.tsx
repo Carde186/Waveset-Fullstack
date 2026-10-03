@@ -27,6 +27,7 @@ export function Intestazione() {
                         {t('text.account')}</NavLink>
                 ) : null}
                 {stato.tipo === 'autenticato' && stato.utente.ruolo === 'USER' ? <NavLink to="/impostazioni" className={classeVoce}>{t('account.title')}</NavLink> : null}
+                {stato.tipo === 'autenticato' && stato.utente.ruolo === 'ADMIN' ? <NavLink to="/admin/eventi" className={classeVoce}>{t('adminEvents.nav')}</NavLink> : null}
                 {stato.tipo === 'anonimo' ? (
                     <>
                         <NavLink to="/accedi" className={classeVoce}>

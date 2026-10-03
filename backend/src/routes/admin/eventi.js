@@ -4,6 +4,16 @@ const pool = require('../../config/database');
 
 const router = express.Router();
 
+function validaId(req, res, next, valore) {
+    if (!/^[1-9]\d*$/.test(valore) || Number(valore) > 2147483647) {
+        return res.status(400).json({ messaggio: 'ID non valido' });
+    }
+    next();
+}
+router.param('id', validaId);
+router.param('artistaId', validaId);
+router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+
 const CAMPI_MODIFICABILI = [
     'titolo',
     'data_evento',
@@ -35,6 +45,8 @@ async function lineupConCandidati(idEventi) {
         lineup.get(riga.evento_id).push({
             id: riga.id,
             nome: riga.nome,
+            id_ticketmaster: riga.id_ticketmaster,
+            id_attraction_ticketmaster: riga.id_attraction_ticketmaster,
             // true quando questo evento ha trovato un candidato Ticketmaster
             // per l'artista ma nessun ADMIN lo ha ancora confermato (vedi
             // POST .../conferma-collegamento) — è quello che decide se
@@ -61,14 +73,16 @@ function formattaEventoCoda(evento, lineup) {
         longitudine:
             evento.longitudine === null ? null : Number(evento.longitudine),
         motivo_revisione: evento.motivo_revisione,
+        fonte: evento.fonte,
+        stato: evento.stato,
         lineup,
     };
 }
 
 async function elencaCoda(req, res) {
     const [righe] = await pool.query(
-        `SELECT id, titolo, data_evento, ora_evento, luogo, citta,
-                latitudine, longitudine, motivo_revisione
+        `SELECT id, titolo, DATE_FORMAT(data_evento, '%Y-%m-%d') data_evento, ora_evento, luogo, citta,
+                latitudine, longitudine, motivo_revisione, fonte, stato
          FROM evento
          WHERE stato = 'in_coda'
          ORDER BY data_evento, ora_evento`,
@@ -83,7 +97,7 @@ async function elencaCoda(req, res) {
 
 async function trovaEventoInCoda(id) {
     const [righe] = await pool.query(
-        "SELECT * FROM evento WHERE id = ? AND stato = 'in_coda'",
+        "SELECT *, DATE_FORMAT(data_evento, '%Y-%m-%d') data_evento FROM evento WHERE id = ? AND stato = 'in_coda'",
         [id],
     );
     return righe[0] ?? null;
@@ -141,22 +155,32 @@ async function approvaEvento(req, res) {
         return;
     }
 
-    if (evento.latitudine === null || evento.longitudine === null) {
+    if (evento.latitudine === null || evento.longitudine === null ||
+        !Number.isFinite(Number(evento.latitudine)) || !Number.isFinite(Number(evento.longitudine)) ||
+        Math.abs(Number(evento.latitudine)) > 90 || Math.abs(Number(evento.longitudine)) > 180) {
         res.status(400).json({
             messaggio: 'Imposta le coordinate prima di approvare',
         });
         return;
     }
+    const [fonti] = await pool.query('SELECT stato_fonte FROM ticketmaster_evento_fonte WHERE evento_id = ?', [evento.id]);
+    if (fonti[0]?.stato_fonte === 'canceled') return res.status(400).json({ messaggio: 'Evento annullato dalla fonte' });
 
-    await pool.query(
-        "UPDATE evento e LEFT JOIN ticketmaster_evento_fonte sf ON sf.evento_id=e.id SET e.stato = 'pubblicato', e.motivo_revisione = NULL, sf.protetto_admin=TRUE WHERE e.id = ? AND e.stato='in_coda'",
+    const [aggiornamento] = await pool.query(
+        "UPDATE evento e LEFT JOIN ticketmaster_evento_fonte sf ON sf.evento_id=e.id SET e.stato = 'pubblicato', e.motivo_revisione = NULL, sf.protetto_admin=TRUE WHERE e.id = ? AND e.stato='in_coda' AND (sf.stato_fonte IS NULL OR sf.stato_fonte <> 'canceled')",
         [req.params.id],
     );
+
+    if (!aggiornamento.affectedRows) return res.status(409).json({ messaggio: 'Evento già revisionato' });
 
     res.status(204).end();
 }
 
 async function scartaEvento(req, res) {
+    const motivo = req.body?.motivo;
+    if (motivo !== undefined && (typeof motivo !== 'string' || motivo.trim().length > 255)) {
+        return res.status(400).json({ messaggio: 'Motivazione non valida' });
+    }
     const evento = await trovaEventoInCoda(req.params.id);
     if (!evento) {
         res.status(404).json({ messaggio: 'Evento in coda non trovato' });
@@ -166,9 +190,11 @@ async function scartaEvento(req, res) {
     // Soft delete: la riga resta, con id_esterno intatto, così un import
     // successivo che ritrova lo stesso evento lo salta invece di
     // reinserirlo (vedi src/ticketmaster/importa.js).
-    await pool.query("UPDATE evento e LEFT JOIN ticketmaster_evento_fonte sf ON sf.evento_id=e.id SET e.stato = 'scartato', sf.protetto_admin=TRUE WHERE e.id = ? AND e.stato='in_coda'", [
+    const [aggiornamento] = await pool.query("UPDATE evento e LEFT JOIN ticketmaster_evento_fonte sf ON sf.evento_id=e.id SET e.stato = 'scartato', e.motivo_revisione = ?, sf.protetto_admin=TRUE WHERE e.id = ? AND e.stato='in_coda'", [
+        motivo?.trim() || null,
         req.params.id,
     ]);
+    if (!aggiornamento.affectedRows) return res.status(409).json({ messaggio: 'Evento già revisionato' });
 
     res.status(204).end();
 }
@@ -180,6 +206,7 @@ async function scartaEvento(req, res) {
 // ciascun collegamento a parte, anche per eventi con più artisti in coda.
 async function confermaCollegamento(req, res) {
     const { id: eventoId, artistaId } = req.params;
+    if (!await trovaEventoInCoda(eventoId)) return res.status(404).json({ messaggio: 'Evento in coda non trovato' });
 
     const [righe] = await pool.query(
         `SELECT id_attraction_ticketmaster FROM evento_artista
@@ -195,16 +222,30 @@ async function confermaCollegamento(req, res) {
         return;
     }
 
-    await pool.query('UPDATE artista SET id_ticketmaster = ? WHERE id = ?', [
-        idAttraction,
-        artistaId,
-    ]);
+    // Una conferma precedente non si sostituisce con un candidato diverso.
+    try {
+        const [aggiornamento] = await pool.query(
+            'UPDATE artista SET id_ticketmaster = ? WHERE id = ? AND (id_ticketmaster IS NULL OR id_ticketmaster = ?)',
+            [idAttraction, artistaId, idAttraction],
+        );
+        if (!aggiornamento.affectedRows) return res.status(409).json({ messaggio: 'Collegamento già confermato con altra attraction' });
+    } catch (errore) {
+        if (errore.code === 'ER_DUP_ENTRY') return res.status(409).json({ messaggio: 'Attraction già collegata a un altro artista' });
+        throw errore;
+    }
 
     res.status(204).end();
 }
 
 router.get('/coda', elencaCoda);
 router.get('/coda/:id', dettaglioCoda);
+// Consultabile anche dopo la decisione, mantenendo /coda/:id retrocompatibile.
+router.get('/:id', async (req, res) => {
+    const [righe] = await pool.query("SELECT *, DATE_FORMAT(data_evento, '%Y-%m-%d') data_evento FROM evento WHERE id = ?", [req.params.id]);
+    if (!righe.length) return res.status(404).json({ messaggio: 'Evento non trovato' });
+    const lineup = await lineupConCandidati([righe[0].id]);
+    res.json(formattaEventoCoda(righe[0], lineup.get(righe[0].id)));
+});
 // Snapshot normalizzato della fonte, disponibile anche per eventi già
 // approvati/scartati. Nessuna chiave o risposta remota grezza.
 router.get('/:id/fonte', async (req, res) => {
@@ -220,5 +261,10 @@ router.post(
     '/:id/artisti/:artistaId/conferma-collegamento',
     confermaCollegamento,
 );
+
+// Non inoltrare a log globali query SQL, motivazioni o dettagli della fonte.
+router.use((errore, req, res, next) => {
+    next(new Error('Revisione evento non riuscita'));
+});
 
 module.exports = router;

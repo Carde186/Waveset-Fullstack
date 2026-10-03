@@ -111,6 +111,9 @@ describe('coda eventi', () => {
         const evento = dati.find(e => e.id === id);
         assert.ok(evento, 'evento creato non trovato nella coda');
         assert.equal(evento.motivo_revisione, 'lineup_non_confermato');
+        assert.equal(evento.fonte, 'ticketmaster');
+        assert.equal(evento.stato, 'in_coda');
+        assert.match(evento.data_evento, /^\d{4}-\d{2}-\d{2}$/);
         assert.deepEqual(
             evento.lineup.map(a => a.nome),
             ['Nova Circuit'],
@@ -209,10 +212,27 @@ describe('approvazione', () => {
 
         const pubblico = await chiama(`/eventi/${id}`);
         assert.equal(pubblico.stato, 200);
+        const dettaglioAdmin = await chiama(`/admin/eventi/${id}`, { sessione: admin });
+        assert.equal(dettaglioAdmin.stato, 200);
+        assert.equal(dettaglioAdmin.dati.stato, 'pubblicato');
     });
 });
 
 describe('scarto', () => {
+    test('motivazione opzionale: validata, conservata nel dettaglio e scarto protetto', async () => {
+        const id = await creaEventoInCoda({ titolo: 'Scarto motivato', idEsterno: `admin-test-${Date.now()}-motivo` });
+        await db.query('INSERT INTO ticketmaster_evento_fonte (evento_id,snapshot,protetto_admin,ultimo_controllo) VALUES (?, ?, FALSE, UTC_TIMESTAMP())', [id, JSON.stringify({ id_esterno: 'fixture-motivo' })]);
+        for (const motivo of [null, 123, 'x'.repeat(256)]) {
+            assert.equal((await chiama(`/admin/eventi/${id}/scarta`, { metodo: 'POST', sessione: admin, corpo: { motivo } })).stato, 400);
+        }
+        assert.equal((await chiama(`/admin/eventi/${id}/scarta`, { metodo: 'POST', sessione: admin, corpo: { motivo: ' Doppione verificato ' } })).stato, 204);
+        const dettaglio = await chiama(`/admin/eventi/${id}`, { sessione: admin });
+        assert.equal(dettaglio.dati.stato, 'scartato');
+        assert.equal(dettaglio.dati.motivo_revisione, 'Doppione verificato');
+        const fonte = await chiama(`/admin/eventi/${id}/fonte`, { sessione: admin });
+        assert.equal(fonte.dati.protetto_admin, true);
+        assert.equal((await chiama(`/eventi/${id}`)).stato, 404);
+    });
     test('scarta: 204, stato scartato, invisibile su /eventi/:id', async () => {
         const id = await creaEventoInCoda({
             titolo: 'Da scartare',
@@ -237,6 +257,16 @@ describe('scarto', () => {
 });
 
 describe('conferma collegamento artista', () => {
+    test('conferma idempotente e candidato diverso: 409 senza sovrascrivere il collegamento', async () => {
+        const candidato = `attraction-idempotente-${Date.now()}`;
+        const id = await creaEventoInCoda({ titolo: 'Conferma idempotente', idEsterno: `admin-test-${Date.now()}-idem`, idAttractionCandidato: candidato, artistaId: artistaProva.id });
+        for (let i = 0; i < 2; i++) assert.equal((await chiama(`/admin/eventi/${id}/artisti/${artistaProva.id}/conferma-collegamento`, { metodo: 'POST', sessione: admin })).stato, 204);
+        const altro = await creaEventoInCoda({ titolo: 'Conferma conflittuale', idEsterno: `admin-test-${Date.now()}-conflict`, idAttractionCandidato: 'attraction-diversa', artistaId: artistaProva.id });
+        assert.equal((await chiama(`/admin/eventi/${altro}/artisti/${artistaProva.id}/conferma-collegamento`, { metodo: 'POST', sessione: admin })).stato, 409);
+        const [[riga]] = await db.query('SELECT id_ticketmaster FROM artista WHERE id=?', [artistaProva.id]);
+        assert.equal(riga.id_ticketmaster, candidato);
+        await db.query('UPDATE artista SET id_ticketmaster=NULL WHERE id=?', [artistaProva.id]);
+    });
     test('senza candidato: 400', async () => {
         const id = await creaEventoInCoda({
             titolo: 'Senza candidato',

@@ -1,6 +1,6 @@
 # Waveset — frontend web
 
-Il frontend comprende accesso, registrazione, area, catalogo locale, `/eventi` e `/eventi/:id` nello stile «Club». La mappa Google funziona quando sono configurati chiave browser e Map ID. Playlist, ricerca Apple live, ADMIN e AI web restano incrementi successivi.
+Il frontend comprende accesso, registrazione, area, catalogo locale, `/eventi`, `/eventi/:id` e revisione eventi Ticketmaster ADMIN nello stile «Club». La mappa Google funziona quando sono configurati chiave browser e Map ID. Playlist, ricerca Apple live e AI web restano incrementi successivi.
 
 ## Eventi e Google Maps
 
@@ -175,7 +175,7 @@ Se il backend locale di test è su un'altra porta, imposta `API_TARGET` al suo U
 ## Limiti noti
 
 - Registrarsi da un browser che ha ancora un cookie di sessione revocato altrove dà 403 dal backend: il frontend mostra un messaggio controllato, ma la correzione spetta al backend.
-- Interfaccia disponibile in italiano e inglese; il frontend è presente nel solo Compose di test. Esplora locale, Eventi e dettagli sono implementati. La mappa richiede configurazione Google; ricerca Apple live, Playlist, ADMIN e AI web restano da implementare.
+- Interfaccia disponibile in italiano e inglese; il frontend è presente nel solo Compose di test. Esplora locale, Eventi e dettagli sono implementati. La mappa richiede configurazione Google; ricerca Apple live, Playlist e AI web restano da implementare.
 - I test frontend usano un backend simulato. In questo incremento sono passati lint, typecheck, **96 test** e build sull'host, più la build Docker e la prova reale descritta sopra. Sono passati anche **385 test backend pertinenti**, senza scritture nel DB; la suite backend completa non è stata rieseguita.
 - Lo script Chrome/CDP è temporaneo e non incluso nel repository. Le sue asserzioni usano `textContent` per evitare l'effetto del CSS uppercase e consumano i corpi fetch diagnostici senza stamparli; nessuna correzione applicativa è stata necessaria.
 - Avvio da clone/volume vuoto, HTTPS e arresto dello stack non verificati in questo incremento. Dietro nginx i rate limit condividono l'IP del proxy perché `trust proxy` resta disattivato.
@@ -244,3 +244,67 @@ Le nuove chiavi IT/EN sono nei dizionari esistenti, ad esempio `sync.lastUpdate`
 La logica backend, lo scheduler e il comando manuale sono documentati nella [sezione Ticketmaster del README principale](../README.md#sincronizzazione-ticketmaster). Nessun evento viene presentato come aggiornato in tempo reale; la copertura dipende dalla fonte.
 
 Regressioni: `AggiornamentoEventi.test.tsx` verifica metadati, stantio/errore, lista ancora disponibile, IT/EN, dettaglio/ritorno con filtro e validazione del contratto. I test frontend usano HTTP simulato; non costituiscono una prova della Discovery API reale.
+
+
+## Revisione ADMIN degli eventi Ticketmaster
+
+Dopo il login con ruolo ADMIN, la navigazione mostra **Revisione eventi**.
+`/admin/eventi` elenca solo eventi Ticketmaster `in_coda`, con titolo, data/ora
+locali, luogo, artisti, motivo e stato del collegamento. `/admin/eventi/:id`
+mostra evento, artista Waveset, ID candidato/confermato e snapshot normalizzato
+separato dai dati curati. Nome e URL dell'attraction arrivano dalla Discovery API
+alla sincronizzazione successiva; i vecchi snapshot restano leggibili senza
+inventare i metadati mancanti. Non si richiede Ticketmaster a ogni visita.
+
+Le azioni chiedono conferma in un dialogo accessibile; durante l'invio si
+bloccano i doppi invii. **Conferma collegamento** fissa l'attraction nell'artista
+locale e non approva l'evento. Un collegamento precedente diverso dà 409 e non
+viene sovrascritto. **Approva evento** pubblica l'evento nella lista e nella
+mappa pubbliche, ma non conferma implicitamente l'identità. Verificare prima
+identità, data, luogo ed eventuali duplicati: il nome da solo non basta.
+**Rifiuta evento** conserva il record come `scartato`, con motivazione opzionale
+(max 255 caratteri), e lo protegge dalla reimportazione automatica.
+
+Si riutilizzano gli endpoint ADMIN esistenti (mutazioni con cookie HttpOnly,
+Origin e CSRF, successo 204):
+
+- `GET /api/admin/eventi/coda`: elenco; aggiunge `fonte`, `stato` e ID
+  candidato/confermato nel lineup in modo retrocompatibile.
+- `GET /api/admin/eventi/:id`: nuovo dettaglio consultabile anche dopo la
+  decisione; `GET /api/admin/eventi/coda/:id` resta disponibile.
+- `GET /api/admin/eventi/:id/fonte`: snapshot normalizzato, stato fonte,
+  ultimo controllo e protezione delle decisioni ADMIN.
+- `POST /api/admin/eventi/:id/artisti/:artistaId/conferma-collegamento`.
+- `POST /api/admin/eventi/:id/approva`: richiede coordinate valide; una
+  cancellazione Ticketmaster impedisce la pubblicazione.
+- `POST /api/admin/eventi/:id/scarta`: accetta anche `{ "motivo": "…" }`.
+
+Ospiti e USER non accedono alle route di revisione (anche le API verificano
+il ruolo); gli eventi approvati restano pubblici. Nessuna migrazione o modifica
+ai seed. I testi nuovi sono nelle chiavi `adminEvents.*` di
+`src/localizzazione/it.json` ed `en.json`. La revisione è manuale: non è una
+verifica AI né introduce una ricerca Apple live.
+
+Regressioni, dalla directory `frontend/`:
+
+```sh
+npm test -- src/schermate/AdminEventi.test.tsx src/api/adminEventi.test.ts
+```
+
+Dalla directory `backend/`, test HTTP con DB in memoria:
+
+```sh
+node --test test/adminEventiSenzaDb.test.js test/ticketmasterSyncSenzaDb.test.js
+```
+
+Integrazione, con solo DB test e backend test avviati:
+
+```sh
+node --env-file=../.env.test --test test/adminEventi.test.js
+```
+
+La verifica browser usa le fixture ADMIN/USER del test: legge la coda reale,
+poi esercita le decisioni su eventi e artista temporanei identificati da UUID,
+verificando scritture DB, visibilità pubblica e marker reali. Chiude soltanto
+le sessioni aperte dalla prova e rimuove soltanto gli ID delle proprie fixture;
+i candidati reali restano disponibili per la revisione umana.

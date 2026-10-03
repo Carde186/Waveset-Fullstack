@@ -14,6 +14,7 @@ import { DettaglioAlbum, DettaglioArtista, DettaglioBrano } from './schermate/De
 import { Eventi } from './schermate/Eventi';
 import { DettaglioEvento } from './schermate/DettaglioEvento';
 import { ImpostazioniAccount } from './schermate/ImpostazioniAccount';
+import { AdminEventi, DettaglioRevisioneEvento } from './schermate/AdminEventi';
 
 // Finché la sessione non è nota (controllo iniziale con /auth/io) o se il backend
 // non ha risposto, si mostra lo stato relativo invece di indovinare.
@@ -58,6 +59,16 @@ function SoloAnonimi({ children }: { children: ReactNode }) {
     return stato.tipo === 'autenticato' ? <Navigate to="/area" replace /> : children;
 }
 
+function SoloAdmin({ children }: { children: ReactNode }) {
+    const { stato } = useAutenticazione();
+    const attesa = useAttesaSessione();
+    if (attesa !== null) return attesa;
+    if (stato.tipo !== 'autenticato') return <Navigate to="/accedi" replace />;
+    if (stato.utente.ruolo !== 'ADMIN') return <StatoVuoto occhiello="403" titolo={t('adminEvents.onlyAdmin')}
+        messaggio={t('adminEvents.denied')} azione={{ testo: t('text.events'), verso: '/eventi' }} />;
+    return children;
+}
+
 function Iniziale() {
     const { stato } = useAutenticazione();
     const attesa = useAttesaSessione();
@@ -84,6 +95,8 @@ export function App() {
                     <Route path="/impostazioni" element={<SoloAutenticati><ImpostazioniAccount /></SoloAutenticati>} />
                     <Route path="/eventi" element={<Eventi />} />
                     <Route path="/eventi/:id" element={<DettaglioEvento />} />
+                    <Route path="/admin/eventi" element={<SoloAdmin><AdminEventi /></SoloAdmin>} />
+                    <Route path="/admin/eventi/:id" element={<SoloAdmin><DettaglioRevisioneEvento /></SoloAdmin>} />
                     <Route path="/artisti/:id" element={<DettaglioArtista />} />
                     <Route path="/brani/:id" element={<DettaglioBrano />} />
                     <Route path="/album/:id" element={<DettaglioAlbum />} />

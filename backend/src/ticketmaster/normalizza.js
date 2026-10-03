@@ -11,6 +11,13 @@ function coordinata(v, limite) {
     const n = Number(v);
     return Number.isFinite(n) && Math.abs(n) <= limite ? Number(n.toFixed(6)) : null;
 }
+function urlPubblico(v) {
+    try {
+        const u = new URL(v);
+        return u.protocol === 'https:' && !u.username && !u.password && !u.search && !u.hash &&
+            /(^|\.)ticketmaster\.[a-z.]+$/.test(u.hostname) ? u.href : null;
+    } catch { return null; }
+}
 function normalizza(raw, artisti) {
     if (!raw || typeof raw.id !== 'string' || !/^[\w-]{1,64}$/.test(raw.id)) return null;
     const attractions = raw._embedded?.attractions;
@@ -32,6 +39,9 @@ function normalizza(raw, artisti) {
             latitudine: coordinata(venue?.location?.latitude, 90), longitudine: coordinata(venue?.location?.longitude, 180) },
         stato_fonte: STATI.has(raw.dates?.status?.code) ? raw.dates.status.code : 'unknown',
         data_incerta: Boolean(raw.dates?.start?.dateTBD || raw.dates?.start?.dateTBA || raw.dates?.start?.timeTBA),
+        // Metadati pubblici per la revisione, senza payload grezzo o credenziali.
+        attractions: (attractions ?? []).filter(a => a && typeof a.id === 'string' && /^[\w-]{1,64}$/.test(a.id))
+            .map(a => ({ id: a.id, nome: testo(a.name, 200), url: urlPubblico(a.url) })),
         lineup,
     };
 }
