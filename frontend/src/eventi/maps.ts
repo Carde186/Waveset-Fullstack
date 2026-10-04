@@ -88,6 +88,7 @@ function contenutoMarker(evento: Evento): HTMLElement {
         foto.width = 36;
         foto.height = 36;
         foto.decoding = 'async';
+        foto.setAttribute('referrerpolicy', 'no-referrer');
         // L'iniziale resta sotto la foto anche durante il caricamento.
         foto.addEventListener('error', () => foto.remove(), { once: true });
         foto.src = artista.immagineUrl;

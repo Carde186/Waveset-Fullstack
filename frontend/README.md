@@ -308,3 +308,21 @@ poi esercita le decisioni su eventi e artista temporanei identificati da UUID,
 verificando scritture DB, visibilità pubblica e marker reali. Chiude soltanto
 le sessioni aperte dalla prova e rimuove soltanto gli ID delle proprie fixture;
 i candidati reali restano disponibili per la revisione umana.
+
+## Gestione ADMIN artisti / Apple Music
+
+`/admin/artisti` elenca gli artisti locali; `/admin/artisti/:id` mostra profilo Apple Music collegato, ricerca per nome, risultati con artwork artista/generi/link, selezione e conferma esplicita (con avviso di sostituzione), sync manuale e stati loading/vuoto/errore. Solo ADMIN; chiamate same-origin con sessione e CSRF esistenti. Testi IT/EN in `localizzazione/it.json` e `en.json`, chiavi `apple.*`. Nessuna credenziale Apple nel frontend, nessun MusicKit browser e nessuna modifica alla UI degli eventi. Vedi [guida backend/configurazione](../docs/apple-music.md).
+
+## Gestione ADMIN provider artisti
+
+Le pagine `/admin/artisti` e `/admin/artisti/:id` usano `ARTISTI_PROVIDER` restituito dal backend, con Deezer come default e Apple opzionale. API in `src/api/artistiProvider.ts`, testi IT/EN `provider.*`; ricerca con foto/fan/generi se presenti, conferma esplicita, sync e badge Ticketmaster con ricontrollo. Il controllo è informativo: non modifica le conferme ADMIN né blocca il collegamento artistico. Le immagini collegate arrivano tramite `lineup[].immagine_url` ai marker esistenti. Nessuna chiave nel browser. Guida: [provider artisti](../docs/provider-artisti.md).
+
+## Ritratti nel hero e copertine Ticketmaster
+
+`Vetrina` accetta una visuale opzionale: il dettaglio artista vi colloca il ritratto quadrato (massimo320px, provider→locale→grafica), accanto al nome su desktop e sotto il testo su mobile. `CopertinaEvento` rende `Evento.immagineUrl` nella lista in un riquadro16:9 e nel pannello destro del hero del dettaglio, con `object-fit: cover` e `object-position: center`; su mobile informazioni sopra e immagine sotto in rapporto16:9; assenza/errore mostra un calendario neutro, mai una foto della lineup. Testi `events.cover` e `events.coverUnavailable` IT/EN. Foto lineup e marker sono indipendenti. Esplora non contiene card evento. Persistenza e backfill: [guida immagini eventi](../docs/immagini-eventi.md).
+
+## Registro Ollama e visibilità eventi
+
+`/admin/eventi` e `/admin/eventi/:id` sono registro consultabile delle valutazioni automatiche Ticketmaster: stato finale, confidenza, motivazione, modello, data, tentativi/errore e storico JSON. L'unica azione è “Rivaluta con Ollama” (202, controllo ADMIN+CSRF), disabilitata mentre già in attesa. Non esistono più pulsanti approva/rifiuta/conferma nel flusso eventi. Testi IT/EN `ollama.*`. Il frontend non chiama né configura Ollama: usa `/api/admin/eventi/registro` e gli endpoint backend.
+
+Esplora include prossimi eventi dalla stessa API pubblica della pagina Eventi: solo Ticketmaster approvati automaticamente; marker, filtri/follow e foto/copertine restano invariati. Setup worker e audit: [docs/ollama-eventi.md](../docs/ollama-eventi.md).

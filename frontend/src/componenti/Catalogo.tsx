@@ -21,7 +21,7 @@ function ImmagineReale({ url, descrizione }: { url: string; descrizione: string 
     return fallita ? (
         <Decorazione />
     ) : (
-        <img src={url} alt={descrizione} loading="lazy" onError={() => impostaFallita(true)} />
+        <img src={url} alt={descrizione} loading="lazy" referrerPolicy="no-referrer" onError={() => impostaFallita(true)} />
     );
 }
 
@@ -50,8 +50,7 @@ export function CartaArtista({ artista }: { artista: ArtistaSintetico }) {
             to={`/artisti/${artista.id}`}
             aria-label={t('catalog.openArtist', { name: artista.nome })}
         >
-            {/* La lista non fornisce crediti fotografici: usa arte astratta. */}
-            <ArteCatalogo immagine={null} descrizione={artista.nome} />
+            <ArteCatalogo immagine={artista.immagineUrl} descrizione={t('catalog.photo', { name: artista.nome })} />
             <div className={stile.copia}>
                 <small>{t('text.localArtist')}</small>
                 <h3>{artista.nome}</h3>

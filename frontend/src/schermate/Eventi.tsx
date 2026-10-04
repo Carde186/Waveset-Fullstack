@@ -1,5 +1,6 @@
 import { testoMessaggio } from '../api/messaggi';
 import { t } from '../localizzazione/lingua';
+import { CopertinaEvento } from '../eventi/CopertinaEvento';
 import { useCallback, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { elencaEventi, type Evento, type FiltroEventi } from '../api/eventi';
@@ -36,6 +37,7 @@ function Elenco({ eventi, filtro }: { eventi: Evento[]; filtro: FiltroEventi }) 
                 <h2>{t('text.upcomingEvents')}</h2>
                 <ul className={stile.lista}>{eventi.map((e) => <li key={e.id}>
                     <article id={`evento-${e.id}`} tabIndex={-1} className={`${stile.carta} ${selezionato === e.id ? stile.selezionata : ''}`} aria-label={e.titolo}>
+                        <CopertinaEvento evento={e} />
                         <h3><Link to={`/eventi/${e.id}?filtro=${filtro}`}>{e.titolo} ↗</Link></h3>
                         <InformazioniEvento evento={e} />
                         <LineupEvento evento={e} />

@@ -2,6 +2,7 @@ import { t } from '../localizzazione/lingua';
 import { Link } from 'react-router';
 import type { Evento } from '../api/eventi';
 import { dataCatalogo, dataControllo } from '../catalogo/formato';
+import { ArteCatalogo } from '../componenti/Catalogo';
 import stile from './Eventi.module.css';
 
 export function InformazioniEvento({ evento }: { evento: Evento }) {
@@ -20,6 +21,9 @@ export function InformazioniEvento({ evento }: { evento: Evento }) {
 
 export function LineupEvento({ evento }: { evento: Evento }) {
     return evento.lineup.length ? <ul className={stile.lineup} aria-label={t('events.lineup', { name: evento.titolo })}>
-        {evento.lineup.map((a) => <li key={a.id}><Link to={`/artisti/${a.id}`}>{a.nome} ↗</Link></li>)}
+        {evento.lineup.map((a) => <li key={a.id}><Link to={`/artisti/${a.id}`}>
+            <div className={stile.fotoLineup}><ArteCatalogo immagine={a.immagineUrl} descrizione={t('catalog.photo', { name: a.nome })} /></div>
+            <span>{a.nome} ↗</span>
+        </Link></li>)}
     </ul> : <p>{t('text.lineupUnavailable')}</p>;
 }

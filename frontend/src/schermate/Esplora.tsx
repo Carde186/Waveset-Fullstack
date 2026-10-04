@@ -1,4 +1,8 @@
 import { t } from '../localizzazione/lingua';
+import { Link } from 'react-router';
+import { elencaEventi } from '../api/eventi';
+import { CopertinaEvento } from '../eventi/CopertinaEvento';
+import { InformazioniEvento } from '../eventi/InformazioniEvento';
 import { useCallback, useState } from 'react';
 import {
     cercaCatalogo,
@@ -103,6 +107,32 @@ function ArtistiPerGenere({ genereId }: { genereId: number | undefined }) {
     );
 }
 
+// Stessa API pubblica usata dalla mappa: i Ticketmaster rifiutati non arrivano al browser.
+function ProssimiEventi() {
+    const { stato, riprova } = useRisorsa('esplora-eventi', elencaEventi);
+    if (stato.tipo === 'errore')
+        return <StatoErrore messaggio={erroreCatalogo(stato.causa)} suRiprova={riprova} />;
+    if (stato.tipo !== 'pronto' || !stato.dati.length) return null;
+    return (
+        <section aria-label={t('ollama.exploreEvents')}>
+            <div className="sezione">
+                <h2>{t('ollama.exploreEvents')}</h2>
+            </div>
+            <div className={stile.griglia}>
+                {stato.dati.slice(0, 6).map((e) => (
+                    <article className={stile.eventoEsplora} key={e.id}>
+                        <CopertinaEvento evento={e} />
+                        <h3>
+                            <Link to={`/eventi/${e.id}?filtro=tutti`}>{e.titolo}</Link>
+                        </h3>
+                        <InformazioniEvento evento={e} />
+                    </article>
+                ))}
+            </div>
+        </section>
+    );
+}
+
 export function Esplora() {
     const [ricerca, impostaRicerca] = useState('');
     const [genereId, impostaGenereId] = useState<number>();
@@ -115,8 +145,7 @@ export function Esplora() {
             <Vetrina>
                 <div className="occhiello">{t('text.localCatalog')}</div>
                 <h1 className="titolo">{t('text.explore3')}</h1>
-                <p>
-                    {t('text.artistsTracksAndAlbumsAlreadyOn')}</p>
+                <p>{t('text.artistsTracksAndAlbumsAlreadyOn')}</p>
             </Vetrina>
 
             <section className={stile.strumenti} aria-label={t('text.catalogSearch')}>
@@ -150,8 +179,7 @@ export function Esplora() {
                 <div className="sezione">
                     <h2>{t('text.artistsByGenre')}</h2>
                 </div>
-                <p className="introduzione">
-                    {t('text.theGenreOnlyFiltersThisList')}</p>
+                <p className="introduzione">{t('text.theGenreOnlyFiltersThisList')}</p>
                 {generi.stato.tipo === 'caricamento' ? (
                     <StatoCaricamento testo={t('text.loadingGenres')} livelloTitolo={3} />
                 ) : generi.stato.tipo === 'errore' ? (
@@ -172,7 +200,8 @@ export function Esplora() {
                                 aria-pressed={genereId === undefined}
                                 onClick={() => impostaGenereId(undefined)}
                             >
-                                {t('text.all')}</Bottone>
+                                {t('text.all')}
+                            </Bottone>
                             {generi.stato.dati.map((g) => (
                                 <Bottone
                                     key={g.id}
@@ -188,8 +217,8 @@ export function Esplora() {
                     </>
                 )}
             </section>
-            <div className="piede">
-                {t('text.exploreTheLocalCatalogTestEnvironment')}</div>
+            <ProssimiEventi />
+            <div className="piede">{t('text.exploreTheLocalCatalogTestEnvironment')}</div>
         </section>
     );
 }

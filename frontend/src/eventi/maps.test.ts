@@ -142,6 +142,7 @@ test('foto del primo artista ripetuta per evento, fallback su errore e selezione
     expect(foto).toHaveAttribute('src', artista.immagineUrl);
     expect(foto).toHaveAttribute('width', '36');
     expect(foto).toHaveAttribute('alt', '');
+    expect(foto).toHaveAttribute('referrerpolicy', 'no-referrer');
     expect(secondo!.contenuto!.querySelector('img')).toHaveAttribute('src', artista.immagineUrl);
     expect(primo!.contenuto).not.toBe(secondo!.contenuto);
     expect(placeholder!.contenuto).toHaveTextContent('N');

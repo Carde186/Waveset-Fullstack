@@ -252,3 +252,50 @@ test('ricerca fallita: riprova la stessa query e distingue dati invalidi da ness
     expect(await screen.findByRole('heading', { name: 'Nessun risultato.' })).toBeInTheDocument();
     expect(backend.di('GET', '/api/ricerca?q=no')).toHaveLength(2);
 });
+
+test('Esplora mostra la foto risolta dell’artista, anche nella ricerca, e gestisce errore', async () => {
+    const foto = 'https://cdn-images.dzcdn.net/images/artist/test/250x250.jpg';
+    apri({
+        'GET /api/artisti': json(200, [{ ...ARTISTI[0], immagine_url: foto }]),
+        'GET /api/ricerca?q=Nova': json(200, {
+            artisti: [{ ...ARTISTI[0], immagine_url: foto }],
+            brani: [],
+        }),
+    });
+    const immagine = await screen.findByRole('img', { name: 'Foto di Nova Circuit' });
+    expect(immagine).toHaveAttribute('src', foto);
+    fireEvent.error(immagine);
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    cerca('Nova');
+    expect(await screen.findByRole('img', { name: 'Foto di Nova Circuit' })).toHaveAttribute(
+        'src',
+        foto,
+    );
+});
+
+test('Esplora mostra solo gli eventi restituiti dalle API pubbliche con link al dettaglio', async () => {
+    simulaBackend({
+        'GET /api/auth/io': SESSIONE_NON_VALIDA(),
+        'GET /api/generi': json(200, []),
+        'GET /api/artisti': json(200, []),
+        'GET /api/eventi?filtro=tutti': json(200, [
+            {
+                id: 269,
+                titolo: 'Evento approvato Ollama',
+                data_evento: '2090-01-01',
+                ora_evento: null,
+                luogo: 'Pacha',
+                citta: 'Dubai',
+                latitudine: 25,
+                longitudine: 55,
+                lineup: [],
+            },
+        ]),
+    });
+    renderizzaApp('/esplora');
+    expect(await screen.findByRole('link', { name: 'Evento approvato Ollama' })).toHaveAttribute(
+        'href',
+        '/eventi/269?filtro=tutti',
+    );
+    expect(screen.queryByText('Evento rifiutato Ollama')).not.toBeInTheDocument();
+});

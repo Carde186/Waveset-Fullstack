@@ -88,3 +88,15 @@ test('401, 404 e 400 del backend mantengono lo stato HTTP', async () => {
     await expect(leggiEvento(99)).rejects.toMatchObject({ stato: 404 });
     await expect(elencaEventi()).rejects.toMatchObject({ stato: 400 });
 });
+
+test('copertina normalizzata separatamente dalle foto lineup; legacy e URL non valido => null', () => {
+    const url = 'https://s1.ticketm.net/dam/a/evento.jpg';
+    const immagine = { url, width: 1024, height: 576, ratio: '16_9', fallback: false, source: 'ticketmaster' };
+    const e = normalizzaEvento({ ...EVENTO, immagine_url: url, immagine });
+    expect(e.immagineUrl).toBe(url); expect(e.immagine).toEqual(immagine);
+    expect(e.lineup[0]?.immagineUrl).toBe('https://example.org/nova.jpg');
+    for (const immagine_url of [undefined, null, 'javascript:alert(1)', 'https://user:pass@example.org/image.jpg']) {
+        const senza = normalizzaEvento({ ...EVENTO, immagine_url, immagine });
+        expect(senza.immagineUrl).toBeNull(); expect(senza.immagine).toBeNull();
+    }
+});

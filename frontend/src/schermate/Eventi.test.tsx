@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
 import * as maps from '../eventi/maps';
@@ -8,6 +8,20 @@ const UNO = { id: 1, titolo: 'Notte Elettrica', data_evento: '2027-02-13', ora_e
     luogo: 'Arca', citta: 'Milano', latitudine: 45.47, longitudine: 9.18,
     lineup: [{ id: 4, nome: 'Nova Circuit', immagine_url: null }] };
 const DUE = { ...UNO, id: 2, titolo: 'Alba', latitudine: null, longitudine: null, lineup: [] };
+
+test.each(['/eventi', '/eventi/1'])('foto lineup su %s: presente, errore e segnaposto', async percorso => {
+    const foto = 'https://cdn-images.dzcdn.net/images/artist/test/250x250.jpg';
+    const evento = { ...UNO, lineup: [{ ...UNO.lineup[0], immagine_url: foto }, { id: 5, nome: 'Secondario', immagine_url: null }] };
+    simulaBackend({ 'GET /api/auth/io': SESSIONE_NON_VALIDA(), 'GET /api/eventi?filtro=tutti': json(200, [evento]), 'GET /api/eventi/1': json(200, evento) });
+    renderizzaApp(percorso);
+    const lista = await screen.findByRole('list', { name: 'Lineup di Notte Elettrica' });
+    const immagine = within(lista).getByRole('img', { name: 'Foto di Nova Circuit' });
+    expect(immagine).toHaveAttribute('src', foto); expect(immagine).toHaveAttribute('referrerpolicy', 'no-referrer');
+    expect(within(lista).getAllByRole('link').map(a => a.textContent)).toEqual(expect.arrayContaining([expect.stringContaining('Nova Circuit'), expect.stringContaining('Secondario')]));
+    expect(within(lista).queryByRole('img', { name: 'Foto di Secondario' })).not.toBeInTheDocument();
+    fireEvent.error(immagine); expect(within(lista).queryByRole('img')).not.toBeInTheDocument();
+    expect(within(lista).getAllByText('Grafica Club')).toHaveLength(2);
+});
 
 // L'adattatore reale crea il contenuto e collega gli eventi; solo lo SDK è finto.
 function sdkSimulato() {
@@ -210,4 +224,60 @@ test('cambio filtro ignora una risposta precedente arrivata tardi', async () => 
     expect(await screen.findByRole('link', { name: /Alba/ })).toBeInTheDocument();
     await act(async () => vecchia.risolvi(json(200, [UNO])));
     expect(screen.queryByRole('link', { name: /Notte Elettrica/ })).not.toBeInTheDocument();
+});
+
+test.each(['/eventi', '/eventi/1'])('copertina evento su %s: presente, assente e in errore resta separata dalla lineup', async percorso => {
+    const copertina = 'https://s1.ticketm.net/dam/a/evento.jpg';
+    const fotoArtista = 'https://cdn-images.dzcdn.net/images/artist/test/250x250.jpg';
+    const evento = { ...UNO, immagine_url: copertina, immagine: { url: copertina, width: 1024, height: 576, ratio: '16_9', fallback: false, source: 'ticketmaster' },
+        lineup: [{ ...UNO.lineup[0], immagine_url: fotoArtista }] };
+    simulaBackend({ 'GET /api/auth/io': SESSIONE_NON_VALIDA(), 'GET /api/eventi?filtro=tutti': json(200, [evento, DUE]), 'GET /api/eventi/1': json(200, evento) });
+    renderizzaApp(percorso);
+    const immagine = await screen.findByRole('img', { name: 'Copertina di Notte Elettrica' });
+    expect(immagine).toHaveAttribute('src', copertina);
+    expect(immagine).toHaveAttribute('loading', percorso === '/eventi' ? 'lazy' : 'eager');
+    expect(immagine).toHaveAttribute('referrerpolicy', 'no-referrer');
+    if (percorso === '/eventi/1') {
+        const hero = screen.getByRole('heading', { level: 1, name: UNO.titolo }).closest('[class*="vetrina"]');
+        expect(hero).toContainElement(immagine);
+        expect(hero?.querySelector('[class*="visualeEstesa"]')).toContainElement(immagine);
+        expect(hero?.querySelector('[aria-hidden="true"]')).toBeNull();
+        expect(screen.getAllByRole('img', { name: 'Copertina di Notte Elettrica' })).toHaveLength(1);
+    }
+    const lineup = screen.getByRole('list', { name: 'Lineup di Notte Elettrica' });
+    expect(within(lineup).getByRole('img', { name: 'Foto di Nova Circuit' })).toHaveAttribute('src', fotoArtista);
+    if (percorso === '/eventi') expect(within(screen.getByRole('article', { name: 'Alba' })).getByText('Copertina evento non disponibile')).toBeInTheDocument();
+    fireEvent.error(immagine);
+    expect(screen.queryByRole('img', { name: 'Copertina di Notte Elettrica' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Copertina evento non disponibile').length).toBeGreaterThan(0);
+    expect(within(lineup).getByRole('img')).toHaveAttribute('src', fotoArtista);
+    if (percorso === '/eventi/1') expect(screen.getByRole('heading', { level: 1, name: UNO.titolo }).closest('[class*="vetrina"]'))
+        .toContainElement(screen.getByText('Copertina evento non disponibile'));
+});
+
+test('dettaglio senza copertina usa segnaposto evento anche quando la foto artista esiste', async () => {
+    const evento = { ...UNO, immagine_url: null, lineup: [{ ...UNO.lineup[0], immagine_url: 'https://cdn-images.dzcdn.net/images/artist/test/250x250.jpg' }] };
+    simulaBackend({ 'GET /api/auth/io': SESSIONE_NON_VALIDA(), 'GET /api/eventi/1': json(200, evento) });
+    renderizzaApp('/eventi/1');
+    expect(await screen.findByText('Copertina evento non disponibile')).toBeInTheDocument();
+    const hero = screen.getByRole('heading', { level: 1, name: UNO.titolo }).closest('[class*="vetrina"]');
+    expect(hero?.querySelector('[class*="visualeEstesa"]')).toContainElement(screen.getByText('Copertina evento non disponibile'));
+    expect(hero?.querySelector('[class*="arte"]')).toBeNull();
+    expect(screen.queryByRole('img', { name: 'Copertina di Notte Elettrica' })).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Foto di Nova Circuit' })).toBeInTheDocument();
+});
+
+test('evento approvato dall’API pubblica presente in lista e marker; evento rifiutato escluso', async () => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'chiave-simulata');
+    vi.stubEnv('VITE_GOOGLE_MAPS_MAP_ID', 'id-simulato');
+    const loader = vi.spyOn(maps, 'caricaMaps').mockResolvedValue(sdkSimulato());
+    try {
+        const approvato = { ...UNO, titolo: 'Ticketmaster approvato Ollama', fonte: 'ticketmaster', stato_fonte: 'onsale', ultimo_controllo: '2026-10-04T10:00:00Z', assente_fonte: false, modifiche_fonte: false };
+        simulaBackend({ 'GET /api/auth/io': SESSIONE_NON_VALIDA(), 'GET /api/eventi?filtro=tutti': json(200, [approvato]) });
+        renderizzaApp('/eventi');
+        expect(await screen.findByRole('article', { name: approvato.titolo })).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: 'Ticketmaster approvato Ollama · Nova Circuit' })).toBeInTheDocument();
+        expect(screen.queryByRole('article', { name: 'Ticketmaster rifiutato Ollama' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Ticketmaster rifiutato Ollama/ })).not.toBeInTheDocument();
+    } finally { loader.mockRestore(); vi.unstubAllEnvs(); }
 });

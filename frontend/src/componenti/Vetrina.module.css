@@ -26,6 +26,26 @@
     overflow: hidden;
 }
 
+.visuale {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    min-width: 0;
+    padding: 28px;
+}
+
+.estesa .copia {
+    overflow-wrap: anywhere;
+}
+
+/* La cover riempie la riga determinata dal testo, senza imporre la propria
+   altezza intrinseca al hero. Il bordo rimane quello esterno di Vetrina. */
+.visualeEstesa {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+}
+
 .arte::after {
     content: '◌';
     position: absolute;
@@ -47,5 +67,10 @@
 
     .copia {
         padding: 24px;
+    }
+
+    .visualeEstesa {
+        aspect-ratio: 16 / 9;
+        width: 100%;
     }
 }

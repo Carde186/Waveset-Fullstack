@@ -280,3 +280,26 @@ test('cambio ID: la risposta del vecchio artista non sostituisce il nuovo dettag
     ).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Sunset Grid' })).toBeInTheDocument();
 });
+
+test('foto artista provider senza crediti locali: visibile, errore con segnaposto', async () => {
+    const foto = 'https://cdn-images.dzcdn.net/images/artist/test/250x250.jpg';
+    apri('/artisti/1', { 'GET /api/artisti/1': json(200, { ...ARTISTA, immagine_url: foto, credito_immagine: null }) });
+    const immagine = await screen.findByRole('img', { name: 'Foto di Nova Circuit' });
+    expect(immagine).toHaveAttribute('src', foto); expect(screen.queryByText(/Foto:/)).not.toBeInTheDocument();
+    fireEvent.error(immagine); expect(screen.queryByRole('img', { name: 'Foto di Nova Circuit' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Grafica Club').length).toBeGreaterThan(0);
+});
+
+test('ritratto artista nel hero accanto al nome, presente/errore/assenza condividono lo stesso riquadro', async () => {
+    const foto = 'https://cdn-images.dzcdn.net/images/artist/test/250x250.jpg';
+    apri('/artisti/1', { 'GET /api/artisti/1': json(200, { ...ARTISTA, immagine_url: foto }) });
+    const nome = await titolo('Nova Circuit');
+    const ritratto = screen.getByRole('img', { name: 'Foto di Nova Circuit' });
+    const hero = nome.closest('[class*="vetrina"]');
+    expect(hero).toContainElement(ritratto);
+    const riquadro = ritratto.parentElement;
+    fireEvent.error(ritratto);
+    expect(riquadro).toHaveTextContent('Grafica Club');
+    expect(hero).toContainElement(riquadro);
+    expect(screen.queryByRole('img', { name: 'Foto di Nova Circuit' })).not.toBeInTheDocument();
+});

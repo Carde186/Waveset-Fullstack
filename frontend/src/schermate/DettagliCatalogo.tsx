@@ -15,7 +15,7 @@ import { FollowArtista } from '../componenti/FollowArtista';
 import { dataCatalogo, erroreCatalogo } from '../catalogo/formato';
 import { useRisorsa } from '../catalogo/useRisorsa';
 import { Avviso } from '../componenti/Avviso';
-import { Bottone } from '../componenti/Bottone';
+import { Bottone, BottoneLink } from '../componenti/Bottone';
 import { ArteCatalogo, CartaAlbum, ListaBrani } from '../componenti/Catalogo';
 import { StatoCaricamento, StatoErrore, StatoVuoto } from '../componenti/Stati';
 import { Vetrina } from '../componenti/Vetrina';
@@ -109,24 +109,13 @@ export function DettaglioArtista() {
         <PaginaDettaglio tipo="artista" carica={leggiArtista}>
             {(artista) => (
                 <>
-                    <Vetrina>
-                        <div className="occhiello">{t('text.artistLocalCatalog')}</div>
-                        <h1 className="titolo">{artista.nome}</h1>
-                        <p className={stile.testo}>{artista.bio || t('catalog.bioUnavailable')}</p>
-                        <div className={stile.metadati}>
-                            {artista.generi.map((g) => (
-                                <span key={g.id}>{g.nome}</span>
-                            ))}
-                        </div>
-                        <FollowArtista key={artista.id} artista={artista} />
-                    </Vetrina>
-                    {artista.immagineUrl && artista.creditoImmagine ? (
-                        <figure className={stile.immagineDettaglio}>
+                    <Vetrina visuale={
+                        <figure className={stile.ritrattoArtista}>
                             <ArteCatalogo
                                 immagine={artista.immagineUrl}
                                 descrizione={t('catalog.photo', { name: artista.nome })}
                             />
-                            <figcaption className={stile.credito}>
+                            {artista.creditoImmagine ? <figcaption className={stile.credito}>
                                 {t('text.photo')}{' '}{artista.creditoImmagine.autore}.{' '}
                                 {artista.creditoImmagine.licenza}
                                 {artista.creditoImmagine.fonteUrl ? (
@@ -140,9 +129,21 @@ export function DettaglioArtista() {
                                 {artista.creditoImmagine.modificata
                                     ? t('catalog.modifiedImage')
                                     : null}
-                            </figcaption>
+                            </figcaption> : null}
                         </figure>
-                    ) : null}
+                    }>
+                        <div className="occhiello">{t('text.artistLocalCatalog')}</div>
+                        <h1 className="titolo">{artista.nome}</h1>
+                        <p className={stile.testo}>{artista.bio || t('catalog.bioUnavailable')}</p>
+                        <div className={stile.metadati}>
+                            {artista.generi.map((g) => (
+                                <span key={g.id}>{g.nome}</span>
+                            ))}
+                        </div>
+                        <FollowArtista key={artista.id} artista={artista} />
+                        {stato.tipo === 'autenticato' && stato.utente.ruolo === 'ADMIN' ? <BottoneLink variante="contorno" to={`/admin/artisti/${artista.id}`}>{t('provider.manage')}</BottoneLink> : null}
+                    </Vetrina>
+
                     <div className="sezione">
                         <h2>{t('text.album')}</h2>
                     </div>

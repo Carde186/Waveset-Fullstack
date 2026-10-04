@@ -3,11 +3,15 @@
 .pannelloMappa, .carta { min-width: 0; border: 1px solid var(--linea); background: var(--pannello); border-radius: 20px; padding: 24px; overflow-wrap: anywhere; }
 .pannelloMappa { position: sticky; top: 100px; }
 .pannelloMappa h2, .carta h2, .carta h3 { margin-top: 0; }
-.carta h3 { font-size: 1.4rem; }
+.carta h3 { margin-top: 18px; font-size: 1.4rem; }
 .lista { display: grid; gap: 18px; padding: 0; list-style: none; }
 .selezionata { border-color: var(--lime); background: var(--pannello-2); }
 .lineup { display: flex; flex-wrap: wrap; gap: 12px 20px; padding: 0; list-style: none; margin: 20px 0; }
 .lineup a, .carta h3 a, .percorso a { color: var(--lime); }
+.lineup a { display: inline-flex; align-items: center; gap: 10px; }
+.fotoLineup { box-sizing: border-box; width: 40px; height: 40px; flex-shrink: 0; border: 2px solid var(--bianco); border-radius: 50%; overflow: hidden; }
+.fotoLineup > div { width: 100%; height: 100%; aspect-ratio: auto; }
+.fotoLineup span { display: none; }
 .carta p { color: var(--tenue); line-height: 1.6; }
 .carta button { white-space: normal; text-align: left; }
 .selettore { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0; }

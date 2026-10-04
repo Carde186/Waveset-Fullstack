@@ -2,6 +2,9 @@ import { ErroreApi, richiesta } from './client';
 import type { ArtistaSintetico } from './catalogo';
 
 export type FiltroEventi = 'tutti' | 'seguiti';
+export interface ImmagineEvento {
+    url: string; width: number; height: number; ratio: string | null; fallback: boolean; source: 'ticketmaster';
+}
 export interface Evento {
     id: number;
     titolo: string;
@@ -11,6 +14,8 @@ export interface Evento {
     citta: string | null;
     coordinate: { lat: number; lng: number } | null;
     lineup: ArtistaSintetico[];
+    immagineUrl?: string | null;
+    immagine?: ImmagineEvento | null;
     fonte?: { stato: string; ultimoControllo: string | null; assente: boolean; modifiche: boolean };
 }
 
@@ -91,12 +96,21 @@ export function normalizzaEvento(v: unknown): Evento {
         luogo: nullable(r.luogo), citta: nullable(r.citta),
         coordinate: lat !== null && lng !== null ? { lat, lng } : null,
         lineup,
+        immagineUrl: immagine(r.immagine_url),
+        immagine: metadatiImmagine(r.immagine, immagine(r.immagine_url)),
         ...(r.fonte === 'ticketmaster' ? { fonte: {
             stato: ['onsale', 'offsale', 'canceled', 'postponed', 'rescheduled'].includes(String(r.stato_fonte)) ? String(r.stato_fonte) : 'unknown',
             ultimoControllo: typeof r.ultimo_controllo === 'string' && Number.isFinite(Date.parse(r.ultimo_controllo)) ? r.ultimo_controllo : null,
             assente: r.assente_fonte === true, modifiche: r.modifiche_fonte === true,
         } } : {}),
     };
+}
+function metadatiImmagine(v: unknown, url: string | null): ImmagineEvento | null {
+    if (!url || !v || typeof v !== 'object' || Array.isArray(v)) return null;
+    const r = v as Record<string, unknown>;
+    if (r.source !== 'ticketmaster' || r.url !== url || typeof r.width !== 'number' || !Number.isInteger(r.width) || r.width < 1 ||
+        typeof r.height !== 'number' || !Number.isInteger(r.height) || r.height < 1 || typeof r.fallback !== 'boolean') return null;
+    return { url, width: r.width, height: r.height, ratio: typeof r.ratio === 'string' ? r.ratio : null, fallback: r.fallback, source: 'ticketmaster' };
 }
 export async function elencaEventi(filtro: FiltroEventi = 'tutti'): Promise<Evento[]> {
     if (filtro !== 'tutti' && filtro !== 'seguiti') throw new ErroreApi(400);

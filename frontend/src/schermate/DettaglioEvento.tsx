@@ -9,6 +9,7 @@ import { StatoCaricamento, StatoErrore, StatoVuoto } from '../componenti/Stati';
 import { Vetrina } from '../componenti/Vetrina';
 import { InformazioniEvento, LineupEvento } from '../eventi/InformazioniEvento';
 import { MappaEventi } from '../eventi/MappaEventi';
+import { CopertinaEvento } from '../eventi/CopertinaEvento';
 import stile from '../eventi/Eventi.module.css';
 
 const nessunaSelezione = () => {};
@@ -33,7 +34,7 @@ export function DettaglioEvento() {
     const evento = stato.dati;
     return <section className="pagina">
         <nav aria-label={t('text.eventsBreadcrumb')} className={stile.percorso}><Link to={ritorno}>{t('text.events2')}</Link></nav>
-        <Vetrina><div className="occhiello">{t('text.eventLocalCatalog')}</div><h1 className="titolo">{evento.titolo}</h1><InformazioniEvento evento={evento} /></Vetrina>
+        <Vetrina visuale={<CopertinaEvento evento={evento} hero />} visualeEstesa><div className="occhiello">{t('text.eventLocalCatalog')}</div><h1 className="titolo">{evento.titolo}</h1><InformazioniEvento evento={evento} /></Vetrina>
         <div className={stile.disposizione}>
             <MappaEventi eventi={eventiMappa} selezionato={evento.id} suSelezione={nessunaSelezione} />
             <section className={stile.carta}><h2>{t('text.lineup')}</h2><LineupEvento evento={evento} />
