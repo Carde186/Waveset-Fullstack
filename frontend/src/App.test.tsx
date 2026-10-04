@@ -130,7 +130,7 @@ describe('navigazione e stati', () => {
         expect(screen.getByRole('link', { name: /Torna all'inizio/ })).toHaveAttribute('href', '/');
     });
 
-    test('da anonimo la barra ha Esplora, Accedi e Registrati', async () => {
+    test('da anonimo separa navigazione principale da lingua e accesso account', async () => {
         simulaBackend({ 'GET /api/auth/io': SESSIONE_NON_VALIDA() });
 
         renderizzaApp('/');
@@ -141,11 +141,14 @@ describe('navigazione e stati', () => {
             within(navigazione)
                 .getAllByRole('link')
                 .map((l) => l.textContent),
-        ).toEqual(['Esplora', 'Eventi', 'Accedi', 'Registrati']);
+        ).toEqual(['Esplora', 'Eventi']);
+        const account = screen.getByRole('navigation', { name: 'La tua area' });
+        expect(within(account).getByRole('combobox', { name: 'Lingua' })).toBeInTheDocument();
+        expect(within(account).getAllByRole('link').map((l) => l.textContent)).toEqual(['Registrati', 'Accedi']);
         expect(screen.getByRole('link', { name: /Waveset, pagina iniziale/ })).toBeInTheDocument();
     });
 
-    test("da autenticato la barra ha Esplora, Area e il nome dell'utente", async () => {
+    test("da autenticato la barra ha Esplora, Profilo e il nome dell'utente", async () => {
         simulaBackend({ 'GET /api/auth/io': json(200, sessioneDi()) });
 
         renderizzaApp('/');
@@ -156,7 +159,10 @@ describe('navigazione e stati', () => {
             within(navigazione)
                 .getAllByRole('link')
                 .map((l) => l.textContent),
-        ).toEqual(['Esplora', 'Eventi', 'Area', 'Impostazioni account']);
+        ).toEqual(['Esplora', 'Eventi']);
+        const account = screen.getByRole('navigation', { name: 'La tua area' });
+        expect(within(account).getByRole('combobox', { name: 'Lingua' })).toBeInTheDocument();
+        expect(within(account).getAllByRole('link').map((l) => l.textContent)).toEqual(['Profilo', 'Impostazioni account', 'Alice ↗']);
         expect(screen.getByRole('link', { name: /Alice ↗/ })).toHaveAttribute('href', '/area');
     });
 

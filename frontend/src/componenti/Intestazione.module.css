@@ -1,9 +1,10 @@
 .barra {
-    height: 76px;
+    min-height: 76px;
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 36px;
-    padding: 0 5vw;
+    padding: 12px 5vw;
     border-bottom: 1px solid var(--linea);
     position: sticky;
     top: 0;
@@ -12,7 +13,27 @@
     z-index: 10;
 }
 
+.principale {
+    display: flex;
+    align-items: center;
+    gap: 36px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.azioniAccount {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
+    min-width: 0;
+    max-width: 100%;
+}
+
 .marchio {
+    flex-shrink: 0;
     font-size: 25px;
     font-weight: 950;
     letter-spacing: -0.075em;
@@ -28,15 +49,14 @@
 .navigazione {
     display: flex;
     gap: 5px;
-    overflow: auto;
-    scrollbar-width: none;
+    flex-wrap: wrap;
+    min-width: 0;
 }
 
 .lingua {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-left: auto;
     font-size: 12px;
     white-space: nowrap;
 }
@@ -82,22 +102,27 @@
 }
 
 @media (max-width: 970px) {
-    .barra {
+    .barra,
+    .principale {
         gap: 15px;
     }
 }
 
-@media (max-width: 650px) {
+@media (max-width: 760px) {
     .barra {
-        height: auto;
         min-height: 75px;
-        flex-wrap: wrap;
+        gap: 12px;
         padding: 14px 5vw;
     }
 
-    .navigazione {
-        order: 3;
+    .principale {
+        gap: 12px;
         width: 100%;
+    }
+
+    .azioniAccount {
+        width: 100%;
+        margin-left: 0;
     }
 
     .account {

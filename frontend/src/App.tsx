@@ -15,6 +15,7 @@ import { Eventi } from './schermate/Eventi';
 import { DettaglioEvento } from './schermate/DettaglioEvento';
 import { ImpostazioniAccount } from './schermate/ImpostazioniAccount';
 import { AdminEventi, DettaglioRevisioneEvento } from './schermate/AdminEventi';
+import { AdminArtisti, DettaglioAdminArtista } from './schermate/AdminArtisti';
 
 // Finché la sessione non è nota (controllo iniziale con /auth/io) o se il backend
 // non ha risposto, si mostra lo stato relativo invece di indovinare.
@@ -97,6 +98,8 @@ export function App() {
                     <Route path="/eventi/:id" element={<DettaglioEvento />} />
                     <Route path="/admin/eventi" element={<SoloAdmin><AdminEventi /></SoloAdmin>} />
                     <Route path="/admin/eventi/:id" element={<SoloAdmin><DettaglioRevisioneEvento /></SoloAdmin>} />
+                    <Route path="/admin/artisti" element={<SoloAdmin><AdminArtisti /></SoloAdmin>} />
+                    <Route path="/admin/artisti/:id" element={<SoloAdmin><DettaglioAdminArtista /></SoloAdmin>} />
                     <Route path="/artisti/:id" element={<DettaglioArtista />} />
                     <Route path="/brani/:id" element={<DettaglioBrano />} />
                     <Route path="/album/:id" element={<DettaglioAlbum />} />
