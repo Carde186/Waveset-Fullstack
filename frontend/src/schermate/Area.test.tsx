@@ -49,6 +49,8 @@ describe('area autenticata essenziale', () => {
         renderizzaApp('/area');
 
         expect(await screen.findByText('Ruolo: ADMIN')).toBeInTheDocument();
+        const account = screen.getByRole('navigation', { name: 'La tua area' });
+        expect(within(account).getByRole('link', { name: 'Registro eventi' })).toHaveAttribute('href', '/admin/eventi');
     });
 });
 
@@ -70,7 +72,7 @@ describe('uscita: POST /api/auth/logout', () => {
         expect(leggiCsrf()).toBeNull();
 
         // Tornata l'anonimia, la barra propone di nuovo Accedi e Registrati.
-        const navigazione = screen.getByRole('navigation', { name: 'Principale' });
+        const navigazione = screen.getByRole('navigation', { name: 'La tua area' });
         expect(within(navigazione).getByRole('link', { name: 'Registrati' })).toBeInTheDocument();
         expect(screen.queryByText('Ciao, Alice.')).not.toBeInTheDocument();
     });

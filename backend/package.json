@@ -8,8 +8,15 @@
         "dev": "nodemon src/server.js",
         "test": "node --env-file=../.env.test --test --test-concurrency=1 \"test/**/*.test.js\"",
         "admin:crea": "node scripts/creaAdmin.js",
+        "eventi:immagini": "node scripts/backfillImmaginiTicketmaster.js",
         "eventi:sync": "node scripts/sincronizzaTicketmaster.js",
-        "eventi:scheduler": "node scripts/sincronizzaTicketmaster.js --continuo"
+        "eventi:scheduler": "node scripts/sincronizzaTicketmaster.js --continuo",
+        "artisti:apple-schema": "node scripts/preparaAppleMusic.js --applica",
+        "artisti:provider-schema": "node scripts/preparaAppleMusic.js --applica",
+        "eventi:ollama-schema": "node scripts/preparaOllama.js --applica",
+        "eventi:valida": "node scripts/validaEventiOllama.js",
+        "eventi:validazione-worker": "node scripts/validaEventiOllama.js --continuo",
+        "ollama:check": "node scripts/validaEventiOllama.js --check"
     },
     "dependencies": {
         "bcrypt": "^6.0.0",

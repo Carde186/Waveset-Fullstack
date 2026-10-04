@@ -5,6 +5,9 @@ const richiediAutenticazione = require('../autenticazione/richiediAutenticazione
 const richiediRuolo = require('../autenticazione/richiediRuolo');
 const pool = require('../config/database');
 const { SOLO_PUBBLICATI } = require('../utilita/eventi');
+const { creaRepository } = require('../appleMusic/repository');
+const provider = creaRepository(pool);
+const { immaginiArtisti } = require('../artistiProvider/immagini');
 
 const router = express.Router();
 
@@ -44,7 +47,7 @@ async function elencaArtisti(req, res) {
          ORDER BY COUNT(follower.utente_id) DESC, a.nome`,
         parametri,
     );
-    res.json(righe);
+    res.json(await immaginiArtisti(righe));
 }
 
 async function dettaglioArtista(req, res) {
@@ -109,13 +112,25 @@ async function dettaglioArtista(req, res) {
         seguito = righeFollow.length > 0;
     }
 
-    const riga = righeArtista[0];
+    const [riga] = await immaginiArtisti(righeArtista);
+    let appleMusic = null;
+    try {
+        const collegamento = await provider.leggi(id);
+        if (collegamento) {
+            const { versione, ...datiPubblici } = collegamento;
+            appleMusic = datiPubblici;
+        }
+    } catch (e) {
+        // Compatibilità durante un aggiornamento su volume preesistente.
+        // Solo la tabella mancante è tollerata; nessun errore DB viene nascosto.
+        if (e.code !== 'ER_NO_SUCH_TABLE') throw new Error('Lettura profilo artista non riuscita');
+    }
     // credito_immagine è null per il seed dimostrativo (placeholder
     // picsum.photos, nessuna licenza da citare) — popolato solo per le
     // foto reali a licenza libera verificata (CLAUDE.md, "Catalogo
     // reale"). Il frontend mostra il credito SOLO quando non è null: mai
     // dedotto, mai mostrato "a vuoto".
-    const creditoImmagine = riga.immagine_autore
+    const creditoImmagine = !riga.immagine_provider && riga.immagine_autore
         ? {
               autore: riga.immagine_autore,
               licenza: riga.immagine_licenza,
@@ -129,12 +144,14 @@ async function dettaglioArtista(req, res) {
         nome: riga.nome,
         bio: riga.bio,
         immagine_url: riga.immagine_url,
+        immagine_provider: riga.immagine_provider,
         credito_immagine: creditoImmagine,
         generi,
         brani,
         album,
         eventi,
         seguito,
+        apple_music: appleMusic,
     });
 }
 

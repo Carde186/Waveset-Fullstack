@@ -46,6 +46,14 @@ services:
         ports:
             - "127.0.0.1:${BACKEND_HOST_PORT:-3001}:3000"
         environment:
+            OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+            OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+            OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-45000}
+            OLLAMA_SOGLIA_CONFIDENZA: ${OLLAMA_SOGLIA_CONFIDENZA:-0.85}
+            OLLAMA_MAX_TENTATIVI: ${OLLAMA_MAX_TENTATIVI:-3}
+            OLLAMA_CONCORRENZA: ${OLLAMA_CONCORRENZA:-1}
+            OLLAMA_INTERVALLO_MS: ${OLLAMA_INTERVALLO_MS:-30000}
+            OLLAMA_LOTTO: ${OLLAMA_LOTTO:-20}
             PORT: "3000"
             DB_HOST: mysql
             DB_PORT: "3306"
@@ -81,9 +89,21 @@ services:
             # non può essere Secure. Vale SOLO per questo Compose di test:
             # con HTTPS (e in produzione) COOKIE_SECURE va impostato a true.
             COOKIE_SECURE: "false"
+            ARTISTI_PROVIDER: ${ARTISTI_PROVIDER:-deezer}
+            DEEZER_TIMEOUT_MS: ${DEEZER_TIMEOUT_MS:-8000}
+            APPLE_MUSIC_TEAM_ID: ${APPLE_MUSIC_TEAM_ID:-}
+            APPLE_MUSIC_KEY_ID: ${APPLE_MUSIC_KEY_ID:-}
+            APPLE_MUSIC_PRIVATE_KEY: ${APPLE_MUSIC_PRIVATE_KEY:-}
+            APPLE_MUSIC_STOREFRONT: ${APPLE_MUSIC_STOREFRONT:-}
+            APPLE_MUSIC_TOKEN_TTL: ${APPLE_MUSIC_TOKEN_TTL:-3600}
+            APPLE_MUSIC_TIMEOUT_MS: ${APPLE_MUSIC_TIMEOUT_MS:-10000}
         depends_on:
+            ollama-schema:
+                condition: service_completed_successfully
             mysql:
                 condition: service_healthy
+            apple-music-schema:
+                condition: service_completed_successfully
             ticketmaster-schema:
                 condition: service_completed_successfully
             seed-test:
@@ -105,6 +125,20 @@ services:
             retries: 10
         depends_on:
             - backend
+        restart: "no"
+
+    apple-music-schema:
+        build: ./backend
+        command: ["node", "scripts/preparaAppleMusic.js", "--applica"]
+        environment:
+            DB_HOST: mysql
+            DB_PORT: "3306"
+            DB_NAME: waveset_test
+            DB_USER: ${DB_USER}
+            DB_PASSWORD: ${DB_PASSWORD}
+        depends_on:
+            mysql:
+                condition: service_healthy
         restart: "no"
 
     ticketmaster-schema:
@@ -139,12 +173,56 @@ services:
             TICKETMASTER_SYNC_MAX_REQUESTS: ${TICKETMASTER_SYNC_MAX_REQUESTS:-300}
             TICKETMASTER_SYNC_TIMEOUT_MS: ${TICKETMASTER_SYNC_TIMEOUT_MS:-10000}
         depends_on:
+            ollama-schema:
+                condition: service_completed_successfully
             mysql:
                 condition: service_healthy
             ticketmaster-schema:
                 condition: service_completed_successfully
         restart: unless-stopped
         stop_grace_period: 45s
+
+    ollama-schema:
+        build: ./backend
+        command: ["node", "scripts/preparaOllama.js", "--applica"]
+        environment:
+            DB_HOST: mysql
+            DB_PORT: "3306"
+            DB_NAME: waveset_test
+            DB_USER: ${DB_USER}
+            DB_PASSWORD: ${DB_PASSWORD}
+        depends_on:
+            mysql:
+                condition: service_healthy
+            ticketmaster-schema:
+                condition: service_completed_successfully
+            apple-music-schema:
+                condition: service_completed_successfully
+        restart: "no"
+
+    ollama-eventi:
+        build: ./backend
+        command: ["node", "scripts/validaEventiOllama.js", "--continuo"]
+        environment:
+            DB_HOST: mysql
+            DB_PORT: "3306"
+            DB_NAME: waveset_test
+            DB_USER: ${DB_USER}
+            DB_PASSWORD: ${DB_PASSWORD}
+            ARTISTI_PROVIDER: ${ARTISTI_PROVIDER:-deezer}
+            OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+            OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+            OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-45000}
+            OLLAMA_SOGLIA_CONFIDENZA: ${OLLAMA_SOGLIA_CONFIDENZA:-0.85}
+            OLLAMA_MAX_TENTATIVI: ${OLLAMA_MAX_TENTATIVI:-3}
+            OLLAMA_CONCORRENZA: ${OLLAMA_CONCORRENZA:-1}
+            OLLAMA_INTERVALLO_MS: ${OLLAMA_INTERVALLO_MS:-30000}
+            OLLAMA_LOTTO: ${OLLAMA_LOTTO:-20}
+        depends_on:
+            ollama-schema:
+                condition: service_completed_successfully
+        restart: unless-stopped
+        stop_grace_period: 55s
 
 volumes:
     mysql_data:

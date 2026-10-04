@@ -12,6 +12,11 @@ RUN npm ci --omit=dev
 COPY src ./src
 COPY scripts ./scripts
 COPY db/init/13_ticketmaster_sync_schema.sql ./db/init/13_ticketmaster_sync_schema.sql
+COPY db/init/14_apple_music_provider_schema.sql ./db/init/14_apple_music_provider_schema.sql
+
+COPY db/init/15_artista_ticketmaster_presenza_schema.sql ./db/init/15_artista_ticketmaster_presenza_schema.sql
+
+COPY db/init/16_ollama_eventi_schema.sql ./db/init/16_ollama_eventi_schema.sql
 
 EXPOSE 3000
 
