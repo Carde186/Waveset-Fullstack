@@ -212,6 +212,7 @@ Se un test fallisce, non rieseguire i seed a mano né azzerare il volume «per r
 
 - Dentro la rete Compose il backend raggiunge il DB come `mysql:3306`, e il backend ascolta sulla porta `3000` del container.
 - Gli script `backend/db/init/` vengono eseguiti **solo su un volume MySQL vuoto** (comportamento dell'immagine ufficiale `mysql`).
+- Seed opzionale: `backend/db/init/17_artisti_waveset.sql` contiene 33 artisti elettronici reali (techno, house, trance, drum and bass, progressive), con soli nomi e senza immagini o collegamenti esterni. Incluso nella cartella init, viene eseguito automaticamente con gli altri script sui volumi MySQL nuovi, senza comandi speciali. È idempotente per esecuzioni sequenziali.
 - Lo stato di un volume di sviluppo **non** viene trasferito da Git: chi clona parte da schema + demo + ADMIN creato con le proprie credenziali.
 
 `scripts/preflight.sh test|normale` (sola lettura) controlla che Docker risponda, che un volume già esistente appartenga davvero al progetto atteso (nome, label Compose, container collegati, cartella di origine) e che le porte siano libere o del progetto. Si ferma con un messaggio se Docker non è raggiungibile: non scambia un errore per «volume inesistente».
