@@ -1,7 +1,19 @@
 'use strict';
 const { randomBytes } = require('node:crypto');
 const { SCHEMA } = require('./registroFixture');
-// Candidato non integrato. Il registro è l'unica fonte di proprietà delle PK.
+// Il registro è l'unica fonte di proprietà delle PK. Le tabelle di servizio
+// partecipano allo snapshot, ma non possono essere registrate o cancellate.
+const SERVIZI = Object.freeze({
+    ticketmaster_evento_fonte: { pk: ['evento_id'], fk: { evento_id: 'evento' } },
+    ticketmaster_artista_sync: { pk: ['artista_id'], fk: { artista_id: 'artista' } },
+    ticketmaster_sync_stato: { pk: ['id'], fk: {} },
+    artista_provider_link: { pk: ['id'], fk: { artista_id: 'artista' } },
+    artista_ticketmaster_presenza: { pk: ['link_id'], fk: { link_id: 'artista_provider_link' } },
+    ollama_evento_job: { pk: ['evento_id'], fk: { evento_id: 'evento' } },
+    ollama_evento_audit: { pk: ['id'], fk: { evento_id: 'evento', artista_id: 'artista' } },
+});
+for (const s of Object.values(SERVIZI)) { Object.freeze(s.pk); Object.freeze(s.fk); Object.freeze(s); }
+const SCHEMA_SNAPSHOT = Object.freeze({ ...SCHEMA, ...SERVIZI });
 const ORDINE = Object.freeze(['playlist_brano', 'evento_artista', 'artista_genere', 'utente_artista',
     'sessioni', 'playlist', 'brano', 'album', 'evento', 'artista', 'genere', 'utente']);
 const COLONNE = Object.freeze({
@@ -17,11 +29,18 @@ const COLONNE = Object.freeze({
     playlist_brano: 'playlist_id:int brano_id:int aggiunto_il:timestamp',
     evento_artista: 'evento_id:int artista_id:int id_attraction_ticketmaster:varchar',
     utente_artista: 'utente_id:int artista_id:int',
+    ticketmaster_evento_fonte: 'evento_id:int snapshot:json campi_applicati:json lineup_applicata:json protetto_admin:tinyint stato_fonte:enum ultimo_controllo:datetime ultimo_avvistamento:datetime assente_dal:datetime modifiche_fonte:tinyint',
+    ticketmaster_artista_sync: 'artista_id:int ultimo_tentativo:datetime ultimo_successo:datetime prossimo_tentativo:datetime fallimenti:int errore:varchar',
+    ticketmaster_sync_stato: 'id:tinyint ultimo_tentativo:datetime ultimo_successo:datetime errore:varchar richieste:int prossimo_tentativo:datetime fallimenti:int esito:enum',
+    artista_provider_link: 'id:bigint artista_id:int provider:varchar external_id:varchar storefront:char url:varchar immagine_url:varchar dati_normalizzati_json:json raw_json:json sincronizzato_at:datetime versione:int created_at:datetime updated_at:datetime',
+    artista_ticketmaster_presenza: 'link_id:bigint external_id:varchar storefront:char esito_json:json controllato_at:datetime',
+    ollama_evento_job: 'evento_id:int generazione:int stato:enum input_hash:char tentativi:int prossimo_tentativo:datetime motivazione:varchar errore:varchar valutato_at:datetime stato_precedente:varchar motivo_precedente:varchar updated_at:datetime',
+    ollama_evento_audit: 'id:bigint evento_id:int artista_id:int generazione:int tentativo:int modello:varchar versione_prompt:varchar input_hash:char input_json:json risposta_raw:text decisione_modello:enum confidenza:decimal motivazione:varchar errore:varchar decisione_applicata:enum iniziato_at:datetime completato_at:datetime',
 });
-const tabelle = Object.keys(SCHEMA);
-const campi = t => [...new Set([...SCHEMA[t].pk, ...Object.keys(SCHEMA[t].fk)])];
-const selezioni = Object.freeze(Object.fromEntries(tabelle.map(t => [t, `SELECT ${campi(t).join(', ')} FROM ${t} FOR UPDATE`])));
-const deletes = Object.freeze(Object.fromEntries(tabelle.map(t => [t, `DELETE FROM ${t} WHERE ${SCHEMA[t].pk.map(c => `${c} = ?`).join(' AND ')}`])));
+const tabelle = Object.keys(SCHEMA_SNAPSHOT);
+const campi = t => [...new Set([...SCHEMA_SNAPSHOT[t].pk, ...Object.keys(SCHEMA_SNAPSHOT[t].fk)])];
+const selezioni = Object.freeze(Object.fromEntries(Object.keys(SCHEMA).map(t => [t, `SELECT ${campi(t).join(', ')} FROM ${t} FOR UPDATE`])));
+const deletes = Object.freeze(Object.fromEntries(Object.keys(SCHEMA).map(t => [t, `DELETE FROM ${t} WHERE ${SCHEMA[t].pk.map(c => `${c} = ?`).join(' AND ')}`])));
 const copia = x => structuredClone(x);
 const uguale = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const richiedi = (ok, codice) => { if (!ok) throw new Error(codice); };
@@ -43,7 +62,7 @@ function serializzazioneSQL(t) {
     return `CONCAT('v3:${t};', ${pezzi.join(', ')})`;
 }
 function snapshotSQL(t, blocca) {
-    return `SELECT ${campi(t).join(', ')}, SHA2(CONCAT(CAST(? AS BINARY), CAST(${serializzazioneSQL(t)} AS BINARY)), 256) AS impronta FROM ${t} ORDER BY ${SCHEMA[t].pk.join(', ')}${blocca ? ' FOR UPDATE' : ''}`;
+    return `SELECT ${campi(t).join(', ')}, SHA2(CONCAT(CAST(? AS BINARY), CAST(${serializzazioneSQL(t)} AS BINARY)), 256) AS impronta FROM ${t} ORDER BY ${SCHEMA_SNAPSHOT[t].pk.join(', ')}${blocca ? ' FOR UPDATE' : ''}`;
 }
 const SQL = Object.freeze({
     database: 'SELECT DATABASE() AS db',
@@ -61,16 +80,16 @@ const SQL = Object.freeze({
 function verificaMetadati(m) {
     richiedi(uguale(m.tabelle, tabelle.slice().sort().map(tabella => ({ tabella, motore: 'InnoDB', tipo: 'BASE TABLE' }))), 'SCHEMA_TABELLE');
     richiedi(uguale(m.colonne.map(r => [r.tabella, r.colonna, r.tipo]), tabelle.slice().sort().flatMap(t => descrizione(t).map(([c, tipo]) => [t, c, tipo]))), 'SCHEMA_COLONNE');
-    richiedi(m.colonne.every(r => !['time', 'datetime', 'timestamp'].includes(r.tipo) || r.temporale === 0), 'SCHEMA_PRECISIONE_TEMPORALE');
-    richiedi(m.colonne.every(r => r.tipo !== 'decimal' || (r.precisione === 9 && r.scala === 6)), 'SCHEMA_PRECISIONE_DECIMALE');
-    richiedi(uguale(m.pk.map(r => [r.tabella, r.colonna]), tabelle.slice().sort().flatMap(t => SCHEMA[t].pk.map(c => [t, c]))), 'SCHEMA_PK');
+    richiedi(m.colonne.every(r => !['time', 'datetime', 'timestamp'].includes(r.tipo) || r.temporale === (SERVIZI[r.tabella] ? 3 : 0)), 'SCHEMA_PRECISIONE_TEMPORALE');
+    richiedi(m.colonne.every(r => r.tipo !== 'decimal' || (r.precisione === (r.tabella === 'ollama_evento_audit' ? 6 : 9) && r.scala === (r.tabella === 'ollama_evento_audit' ? 5 : 6))), 'SCHEMA_PRECISIONE_DECIMALE');
+    richiedi(uguale(m.pk.map(r => [r.tabella, r.colonna]), tabelle.slice().sort().flatMap(t => SCHEMA_SNAPSHOT[t].pk.map(c => [t, c]))), 'SCHEMA_PK');
     const firma = r => [r.schema_figlio, r.figlio, r.colonna, r.schema_padre, r.padre, r.pk, r.regola].join(':');
-    const attese = tabelle.flatMap(t => Object.entries(SCHEMA[t].fk).map(([c, padre]) => firma({ schema_figlio: 'waveset_test', figlio: t, colonna: c, schema_padre: 'waveset_test', padre, pk: 'id', regola: t === 'brano' && c === 'album_id' ? 'SET NULL' : 'CASCADE' })));
+    const attese = tabelle.flatMap(t => Object.entries(SCHEMA_SNAPSHOT[t].fk).map(([c, padre]) => firma({ schema_figlio: 'waveset_test', figlio: t, colonna: c, schema_padre: 'waveset_test', padre, pk: 'id', regola: (t === 'brano' && c === 'album_id') || (t === 'ollama_evento_audit' && c === 'artista_id') ? 'SET NULL' : 'CASCADE' })));
     richiedi(uguale(m.fk.map(firma).sort(), attese.sort()), 'SCHEMA_FK');
     richiedi(m.trigger.length === 1 && m.trigger[0].totale === 0, 'SCHEMA_TRIGGER');
 }
 function normalizza(stato) {
-    return tabelle.flatMap(t => stato[t].map(r => [chiave(t, SCHEMA[t].pk.map(c => r[c])),
+    return tabelle.flatMap(t => stato[t].map(r => [chiave(t, SCHEMA_SNAPSHOT[t].pk.map(c => r[c])),
         [...campi(t).map(c => r[c]), r.impronta]])).sort((a, b) => a[0].localeCompare(b[0]));
 }
 async function creaAdapterMysqlRegistro({ pool, guardia, urlApi, ambiente = process.env }) {
@@ -128,10 +147,10 @@ async function creaAdapterMysqlRegistro({ pool, guardia, urlApi, ambiente = proc
             for (const r of s[t]) {
                 richiedi(uguale(Object.keys(r).sort(), [...campi(t), 'impronta'].sort()), 'SNAPSHOT_CAMPI');
                 richiedi(typeof r.impronta === 'string' && /^[a-f0-9]{64}$/.test(r.impronta), 'SNAPSHOT_IMPRONTA');
-                richiedi(SCHEMA[t].pk.every(c => Number.isSafeInteger(r[c]) && r[c] > 0), 'SNAPSHOT_PK');
-                richiedi(Object.keys(SCHEMA[t].fk).every(c => (t === 'brano' && c === 'album_id' && r[c] === null) || (Number.isSafeInteger(r[c]) && r[c] > 0)), 'SNAPSHOT_FK');
+                richiedi(SCHEMA_SNAPSHOT[t].pk.every(c => Number.isSafeInteger(r[c]) && r[c] > 0), 'SNAPSHOT_PK');
+                richiedi(Object.keys(SCHEMA_SNAPSHOT[t].fk).every(c => (((t === 'brano' && c === 'album_id') || (t === 'ollama_evento_audit' && c === 'artista_id')) && r[c] === null) || (Number.isSafeInteger(r[c]) && r[c] > 0)), 'SNAPSHOT_FK');
             }
-            richiedi(new Set(s[t].map(r => chiave(t, SCHEMA[t].pk.map(c => r[c])))).size === s[t].length, 'SNAPSHOT_DUPLICATO');
+            richiedi(new Set(s[t].map(r => chiave(t, SCHEMA_SNAPSHOT[t].pk.map(c => r[c])))).size === s[t].length, 'SNAPSHOT_DUPLICATO');
         }
         return copia(s);
     }
@@ -165,7 +184,11 @@ async function creaAdapterMysqlRegistro({ pool, guardia, urlApi, ambiente = proc
         if (!primaLettura) richiedi(indice === anteprima.righe.length, 'PIANO_INCOMPLETO');
         fase = 'lettura';
         const s = await snapshot(true); await metadati();
-        if (primaLettura) { prima = s; fase = 'prima'; }
+        if (primaLettura) {
+            const protette = x => normalizza(x).filter(([k]) => Object.keys(SERVIZI).some(t => k.startsWith(`${t}:`)));
+            richiedi(uguale(protette(s), protette(base)), 'STATO_SERVIZI_MODIFICATO');
+            prima = s; fase = 'prima';
+        }
         else { dopo = s; fase = 'dopo'; }
         return copia(s);
     }
@@ -215,4 +238,4 @@ async function creaAdapterMysqlRegistro({ pool, guardia, urlApi, ambiente = proc
         commit, rollback, chiudi, leggiAnteprima: () => copia(anteprima) };
 }
 module.exports = { creaAdapterMysqlRegistro, SQL, snapshotSQL, codificaSQL, serializzazioneSQL,
-    verificaMetadati, normalizza, COLONNE, ORDINE, selezioni, deletes };
+    verificaMetadati, normalizza, COLONNE, ORDINE, selezioni, deletes, SERVIZI, SCHEMA_SNAPSHOT };

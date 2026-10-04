@@ -10,9 +10,36 @@ export interface ArtistaRevisione {
 }
 export interface EventoRevisione extends Evento {
     sorgente: 'ticketmaster' | 'manuale';
-    stato: 'in_coda' | 'pubblicato' | 'scartato';
+    stato: 'in_coda' | 'pubblicato' | 'scartato' | 'da_valutare';
+    valutazione: Valutazione;
+    audit: Audit[];
     motivo: string | null;
     artisti: ArtistaRevisione[];
+}
+export interface Valutazione {
+    decisione: 'approva' | 'rifiuta' | 'da_valutare';
+    confidenza: number | null;
+    motivazione: string | null;
+    modello: string | null;
+    data: string | null;
+    tentativi: number;
+    errore: string | null;
+}
+export interface Audit {
+    id: number;
+    artista_id: number | null;
+    generazione: number;
+    tentativo: number;
+    modello: string;
+    versione_prompt: string;
+    decisione_modello: string | null;
+    decisione_applicata: string;
+    confidenza: number | null;
+    motivazione: string | null;
+    errore: string | null;
+    iniziato_at: string;
+    completato_at: string | null;
+    risposta_raw?: string | null;
 }
 export interface FonteRevisione {
     snapshot: Record<string, unknown>;
@@ -57,12 +84,12 @@ export function urlTicketmaster(v: unknown): string | null {
         return null;
     }
 }
-function normalizza(v: unknown): EventoRevisione {
-    const r = oggetto(v);
+function normalizza(raw: unknown): EventoRevisione {
+    const r = oggetto(raw);
     const evento = normalizzaEvento(r);
     if (
         !['ticketmaster', 'manuale'].includes(String(r.fonte)) ||
-        !['in_coda', 'pubblicato', 'scartato'].includes(String(r.stato))
+        !['in_coda', 'pubblicato', 'scartato', 'da_valutare'].includes(String(r.stato))
     )
         throw new ErroreApi(200);
     const artisti = (r.lineup as unknown[]).map((v) => {
@@ -75,8 +102,30 @@ function normalizza(v: unknown): EventoRevisione {
             daConfermare: booleano(a.collegamento_da_confermare),
         };
     });
+    const v = oggetto(r.valutazione);
+    if (
+        !['approva', 'rifiuta', 'da_valutare'].includes(String(v.decisione)) ||
+        !Number.isInteger(v.tentativi) ||
+        Number(v.tentativi) < 0 ||
+        (v.confidenza !== null &&
+            (typeof v.confidenza !== 'number' ||
+                !Number.isFinite(v.confidenza) ||
+                v.confidenza < 0 ||
+                v.confidenza > 1))
+    )
+        throw new ErroreApi(200);
     return {
         ...evento,
+        valutazione: {
+            decisione: v.decisione as Valutazione['decisione'],
+            confidenza: v.confidenza as number | null,
+            motivazione: opzionale(v.motivazione),
+            modello: opzionale(v.modello),
+            data: opzionale(v.data),
+            tentativi: Number(v.tentativi),
+            errore: opzionale(v.errore),
+        },
+        audit: Array.isArray(r.audit) ? (r.audit as Audit[]) : [],
         sorgente: r.fonte as EventoRevisione['sorgente'],
         stato: r.stato as EventoRevisione['stato'],
         motivo: opzionale(r.motivo_revisione),
@@ -84,11 +133,9 @@ function normalizza(v: unknown): EventoRevisione {
     };
 }
 export async function elencaCoda(): Promise<EventoRevisione[]> {
-    const r = await richiesta('/admin/eventi/coda');
+    const r = await richiesta('/admin/eventi/registro');
     if (!Array.isArray(r)) throw new ErroreApi(200);
-    const eventi = r
-        .map(normalizza)
-        .filter((e) => e.sorgente === 'ticketmaster' && e.stato === 'in_coda');
+    const eventi = r.map(normalizza).filter((e) => e.sorgente === 'ticketmaster');
     if (new Set(eventi.map((e) => e.id)).size !== eventi.length) throw new ErroreApi(200);
     return eventi;
 }
@@ -138,19 +185,6 @@ export async function leggiFonte(id: number): Promise<FonteRevisione | null> {
         modifiche: booleano(r.modifiche_fonte),
     };
 }
-export async function confermaCollegamento(id: number, artista: number): Promise<void> {
-    await richiesta(
-        `/admin/eventi/${numero(id)}/artisti/${numero(artista)}/conferma-collegamento`,
-        { metodo: 'POST' },
-    );
-}
-export async function decidiEvento(
-    id: number,
-    azione: 'approva' | 'scarta',
-    motivo = '',
-): Promise<void> {
-    await richiesta(`/admin/eventi/${numero(id)}/${azione}`, {
-        metodo: 'POST',
-        ...(azione === 'scarta' ? { corpo: { motivo: motivo.trim() } } : {}),
-    });
+export async function rivalutaEvento(id: number): Promise<void> {
+    await richiesta(`/admin/eventi/${numero(id)}/rivaluta`, { metodo: 'POST' });
 }

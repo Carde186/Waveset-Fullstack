@@ -1,38 +1,28 @@
 import { expect, test } from 'vitest';
 import { impostaCsrf } from './client';
 import {
-    confermaCollegamento,
-    decidiEvento,
+    rivalutaEvento,
     elencaCoda,
     leggiFonte,
     leggiRevisione,
     urlTicketmaster,
 } from './adminEventi';
-import { CSRF, json, senzaCorpo, simulaBackend } from '../test/backend';
-
-test('mutazioni usano solo le route esistenti, cookie e CSRF; ID fuori range rifiutati', async () => {
+import { CSRF, json, simulaBackend } from '../test/backend';
+test('rivalutazione usa cookie e CSRF senza decisioni manuali; ID validato', async () => {
     impostaCsrf(CSRF);
-    const backend = simulaBackend({
-        'POST /api/admin/eventi/1/artisti/5/conferma-collegamento': senzaCorpo(204),
-        'POST /api/admin/eventi/1/approva': senzaCorpo(204),
-        'POST /api/admin/eventi/1/scarta': senzaCorpo(204),
+    const b = simulaBackend({
+        'POST /api/admin/eventi/1/rivaluta': json(202, { stato: 'da_valutare' }),
     });
-    await confermaCollegamento(1, 5);
-    await decidiEvento(1, 'approva');
-    await decidiEvento(1, 'scarta', ' Nota ');
-    expect(
-        backend.chiamate.every(
-            (c) => c.init.credentials === 'same-origin' && c.intestazioni['X-CSRF-Token'] === CSRF,
-        ),
-    ).toBe(true);
-    expect(backend.chiamate[2]?.corpo).toEqual({ motivo: 'Nota' });
-    await expect(decidiEvento(2147483648, 'approva')).rejects.toMatchObject({ stato: 400 });
-    await expect(confermaCollegamento(1, 0)).rejects.toMatchObject({ stato: 400 });
-    expect(backend.chiamate).toHaveLength(3);
+    await rivalutaEvento(1);
+    expect(b.chiamate[0]?.init.credentials).toBe('same-origin');
+    expect(b.chiamate[0]?.intestazioni['X-CSRF-Token']).toBe(CSRF);
+    expect(b.chiamate[0]?.corpo).toBeUndefined();
+    await expect(rivalutaEvento(2147483648)).rejects.toMatchObject({ stato: 400 });
+    expect(b.chiamate).toHaveLength(1);
 });
-test('risposte malformate non sono trattate come coda vuota o dettaglio valido', async () => {
+test('risposte malformate non diventano registro vuoto o dettaglio valido', async () => {
     simulaBackend({
-        'GET /api/admin/eventi/coda': json(200, {}),
+        'GET /api/admin/eventi/registro': json(200, {}),
         'GET /api/admin/eventi/1': json(200, {}),
         'GET /api/admin/eventi/1/fonte': json(200, { snapshot: null }),
     });
@@ -40,7 +30,7 @@ test('risposte malformate non sono trattate come coda vuota o dettaglio valido',
     await expect(leggiRevisione(1)).rejects.toMatchObject({ stato: 200 });
     await expect(leggiFonte(1)).rejects.toMatchObject({ stato: 200 });
 });
-test('fonte assente tollerata, indisponibilità server non mascherata', async () => {
+test('fonte assente tollerata, errore server visibile', async () => {
     simulaBackend({
         'GET /api/admin/eventi/1/fonte': json(404, {}),
         'GET /api/admin/eventi/2/fonte': json(500, {}),
@@ -48,7 +38,7 @@ test('fonte assente tollerata, indisponibilità server non mascherata', async ()
     expect(await leggiFonte(1)).toBeNull();
     await expect(leggiFonte(2)).rejects.toMatchObject({ stato: 500 });
 });
-test('URL attraction: HTTPS pubblico Ticketmaster, senza credenziali o query', () => {
+test('URL pubblici Ticketmaster senza query o credenziali', () => {
     expect(urlTicketmaster('https://www.ticketmaster.com/artist/123')).toBe(
         'https://www.ticketmaster.com/artist/123',
     );

@@ -16,6 +16,7 @@ const { proteggiSessioneCookie } = require('./autenticazione/proteggiSessioneCoo
 const gestisciErrore = require('./gestisciErrore');
 const routeAdminDeezer = require('./routes/admin/deezer');
 const routeAdminEventi = require('./routes/admin/eventi');
+const { creaRouteAdminArtisti } = require('./routes/admin/artisti');
 const routeAdminSpotify = require('./routes/admin/spotify');
 const routeAlbum = require('./routes/album');
 const routeArtisti = require('./routes/artisti');
@@ -128,6 +129,8 @@ function creaApp(opzioni = {}) {
         richiediRuolo('ADMIN'),
         routeAdminEventi,
     );
+    app.use('/api/admin/artisti', richiediAutenticazione, richiediRuolo('ADMIN'),
+        creaRouteAdminArtisti(opzioni.appleMusicService, opzioni.artistiProvider));
     // Anteprima Spotify di sola lettura (demo, non il seed del catalogo):
     // stesso doppio requisito autenticazione+ruolo, mai solo il controllo
     // lato app.
