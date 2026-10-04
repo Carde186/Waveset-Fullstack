@@ -2,6 +2,7 @@ const express = require('express');
 
 const { ottieniCopertina } = require('../itunes/copertina');
 const pool = require('../config/database');
+const { immaginiArtisti } = require('../artistiProvider/immagini');
 const { trovaLinkAlbumSpotify } = require('../spotify/linkAlbum');
 
 const router = express.Router();
@@ -31,7 +32,7 @@ async function dettaglioAlbum(req, res) {
         [id],
     );
 
-    const album = righeAlbum[0];
+    const [album] = await immaginiArtisti(righeAlbum, { campoId: 'artista_id', campoImmagine: 'artista_immagine_url' });
 
     res.json({
         id: album.id,

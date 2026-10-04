@@ -1,6 +1,7 @@
 const express = require('express');
 
 const pool = require('../config/database');
+const { immaginiArtisti } = require('../artistiProvider/immagini');
 const { trovaLinkBranoApple } = require('../itunes/linkBrano');
 const formattaBrano = require('../utilita/formattaBrano');
 
@@ -27,7 +28,8 @@ async function dettaglioBrano(req, res) {
         return;
     }
 
-    res.json(formattaBrano(righe[0]));
+    const [brano] = await immaginiArtisti(righe, { campoId: 'artista_id', campoImmagine: 'artista_immagine_url' });
+    res.json(formattaBrano(brano));
 }
 
 // Link Apple Music ALLA TRACCIA (mai il link album — vedi

@@ -2,6 +2,7 @@ const express = require('express');
 
 const autenticazioneFacoltativa = require('../autenticazione/autenticazioneFacoltativa');
 const pool = require('../config/database');
+const { immaginiArtisti } = require('../artistiProvider/immagini');
 const formattaBrano = require('../utilita/formattaBrano');
 const {
     COLONNE_EVENTO,
@@ -54,7 +55,7 @@ async function novita(req, res) {
         if (brani.length > 0 || eventi.length > 0) {
             res.json({
                 personalizzato: true,
-                brani: brani.map(formattaBrano),
+                brani: (await immaginiArtisti(brani, { campoId: 'artista_id', campoImmagine: 'artista_immagine_url' })).map(formattaBrano),
                 eventi: await formattaEventi(eventi),
             });
             return;
@@ -70,7 +71,7 @@ async function novita(req, res) {
 
     res.json({
         personalizzato: false,
-        brani: brani.map(formattaBrano),
+        brani: (await immaginiArtisti(brani, { campoId: 'artista_id', campoImmagine: 'artista_immagine_url' })).map(formattaBrano),
         eventi: [],
     });
 }

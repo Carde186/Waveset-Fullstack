@@ -1,6 +1,7 @@
 const express = require('express');
 
 const pool = require('../config/database');
+const { immaginiArtisti } = require('../artistiProvider/immagini');
 const formattaBrano = require('../utilita/formattaBrano');
 
 const router = express.Router();
@@ -69,7 +70,7 @@ async function cerca(req, res) {
         [contiene, iniziaCon, LIMITE_PER_SEZIONE],
     );
 
-    res.json({ artisti, brani: brani.map(formattaBrano) });
+    res.json({ artisti: await immaginiArtisti(artisti), brani: (await immaginiArtisti(brani, { campoId: 'artista_id', campoImmagine: 'artista_immagine_url' })).map(formattaBrano) });
 }
 
 router.get('/ricerca', cerca);
