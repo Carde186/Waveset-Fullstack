@@ -5,7 +5,7 @@ const { hashToken } = require('../src/autenticazione/token');
 const { generaCsrf } = require('../src/autenticazione/csrf');
 const device = '12345678-1234-4234-8234-123456789abc';
 const token = 'a'.repeat(64);
-let server, origine, follow, query, ruolo, utente, guasto;
+let server, origine, follow, query, ruolo, utente, guasto, profiloApple, tabellaAppleAssente, immagineCollegata, immagineLocale, copertina;
 const db = { async query(sql, valori = []) {
     query.push({ sql, valori });
     if (sql.includes('FROM sessioni')) return [[{ id: 10, utente_id: utente, hash_token: hashToken(token), valida: 1, ruolo }]];
@@ -14,12 +14,24 @@ const db = { async query(sql, valori = []) {
     if (sql.startsWith('INSERT IGNORE')) { follow.add(`${valori[0]}:${valori[1]}`); return [{ affectedRows: 1 }]; }
     if (sql.startsWith('DELETE FROM utente_artista')) { follow.delete(`${valori[0]}:${valori[1]}`); return [{ affectedRows: 1 }]; }
     if (sql.includes('SELECT 1 FROM utente_artista')) return [follow.has(`${valori[0]}:${valori[1]}`) ? [{}] : []];
-    if (sql.includes('FROM artista WHERE')) return [[{ id: Number(valori[0]), nome: 'Artista', bio: null, immagine_url: null }]];
+    if (sql.includes('FROM artista a') && sql.includes('GROUP BY')) return [[{ id: 1, nome: 'Artista', immagine_url: immagineLocale }]];
+    if (sql.startsWith('SELECT artista_id, immagine_url FROM artista_provider_link')) {
+        if (tabellaAppleAssente) throw Object.assign(new Error('Tabella mancante'), { code: 'ER_NO_SUCH_TABLE' });
+        return [immagineCollegata ? [{ artista_id: 1, immagine_url: immagineCollegata }] : []];
+    }
+    if (sql.includes('FROM artista') && sql.includes('nome LIKE')) return [[{ id: 1, nome: 'Artista', immagine_url: immagineLocale }]];
+    if (sql.includes('FROM artista WHERE')) return [[{ id: Number(valori[0]), nome: 'Artista', bio: null, immagine_url: immagineLocale, immagine_autore: immagineLocale ? 'Autore locale' : null }]];
+    if (sql.includes('FROM artista_provider_link')) {
+        if (tabellaAppleAssente) throw Object.assign(new Error('Tabella mancante'), { code: 'ER_NO_SUCH_TABLE' });
+        return [profiloApple ? [{ dati_normalizzati_json: profiloApple, versione: 7 }] : []];
+    }
+    if (sql.includes('FROM evento e') && sql.includes('WHERE e.id = ?')) return [[{ id: Number(valori[0]), titolo: 'Principale', data_evento: '2027-01-01', latitudine: '45', longitudine: '9', immagine_evento: copertina }]];
     if (sql.includes('FROM evento e') && sql.includes('CURDATE()')) {
         const eventi = [{ id: 1, titolo: 'Principale', data_evento: '2027-01-01', latitudine: '45', longitudine: '9' }, { id: 2, titolo: 'Con ospite', data_evento: '2027-01-02', latitudine: null, longitudine: null }];
-        return [sql.includes('INNER JOIN utente_artista ua') ? eventi.filter(e => (e.id === 1 ? [1] : [1, 2]).some(id => follow.has(`${valori[0]}:${id}`))) : eventi];
+        const selezionati = sql.includes('INNER JOIN utente_artista ua') ? eventi.filter(e => (e.id === 1 ? [1] : [1, 2]).some(id => follow.has(`${valori[0]}:${id}`))) : eventi;
+        return [selezionati.map(e => ({ ...e, immagine_evento: copertina }))];
     }
-    if (sql.includes('SELECT ea.evento_id')) return [[...valori[0].flatMap(id => (id === 1 ? [1] : [1, 2]).map(a => ({ evento_id: id, id: a, nome: `Artista ${a}`, immagine_url: null })))]];
+    if (sql.includes('SELECT ea.evento_id')) return [[...valori[0].flatMap(id => (id === 1 ? [1] : [1, 2]).map(a => ({ evento_id: id, id: a, nome: `Artista ${a}`, immagine_url: immagineLocale })))]];
     if (sql.includes('FROM genere') || sql.includes('FROM brano') || sql.includes('FROM album') || sql.includes('INNER JOIN evento_artista')) return [[]];
     throw new Error('Query non prevista');
 } };
@@ -32,7 +44,7 @@ before(async () => {
     server = await new Promise((resolve, reject) => { const s = app.listen(0, '127.0.0.1', e => e ? reject(e) : resolve(s)); });
     origine = `http://127.0.0.1:${server.address().port}`;
 });
-beforeEach(() => { follow = new Set(); query = []; ruolo = 'USER'; utente = 1; guasto = false; });
+beforeEach(() => { follow = new Set(); query = []; ruolo = 'USER'; utente = 1; guasto = false; profiloApple = null; tabellaAppleAssente = false; immagineCollegata = null; immagineLocale = null; copertina = null; });
 after(async () => { if (server) await new Promise(r => server.close(r)); });
 async function chiama(percorso, method = 'GET', headers = {}, body) {
     const r = await fetch(origine + '/api' + percorso, { method, headers: {
@@ -49,6 +61,15 @@ test('follow duplicato e unfollow inesistente sono idempotenti, dettaglio aggior
     for (let i = 0; i < 2; i++) assert.equal((await chiama('/artisti/1/segui', 'DELETE')).status, 204);
     assert.equal(follow.size, 0); assert.equal((await chiama('/artisti/1')).dati.seguito, false);
     assert.equal((await chiama('/artisti/99999/segui', 'DELETE')).status, 204);
+});
+test('dettaglio artista: profilo Apple pubblico retrocompatibile, niente raw/versione/secret', async () => {
+    profiloApple = { externalId: '123', name: 'Apple', url: 'https://music.apple.com/it/artist/test/123', artwork: null,
+        genres: [], storefront: 'it', syncedAt: '2026-10-03T10:00:00Z', raw: { privato: 'NON_ESPOSTO' } };
+    const r = await chiama('/artisti/1'); assert.equal(r.status, 200); assert.equal(r.dati.nome, 'Artista');
+    assert.equal(r.dati.apple_music.externalId, '123'); assert.equal(Object.hasOwn(r.dati.apple_music, 'versione'), false);
+    assert(!JSON.stringify(r.dati).includes('NON_ESPOSTO'));
+    tabellaAppleAssente = true;
+    const vecchio = await chiama('/artisti/1'); assert.equal(vecchio.status, 200); assert.equal(vecchio.dati.apple_music, null);
 });
 test('artista inesistente: follow 404, nessun inserimento', async () => {
     assert.equal((await chiama('/artisti/99999/segui', 'PUT')).status, 404);
@@ -99,4 +120,39 @@ test('filtro SQL seguiti: nessun follow, artista secondario, nessun duplicato e 
     utente = 2; assert.deepEqual((await chiama('/eventi?filtro=seguiti')).dati, []);
     assert.equal((await chiama('/eventi?filtro=seguiti', 'GET', { Cookie: '' })).status, 401);
     assert.equal((await chiama('/eventi?filtro=tutti', 'GET', { Cookie: '' })).dati.length, 2);
+});
+
+test('API pubbliche: immagine provider in artista/lista/lineup, fallback locale e nessun credito locale sulla foto provider', async () => {
+    immagineLocale = 'https://locale.waveset.test/foto.jpg';
+    immagineCollegata = 'https://cdn-images.dzcdn.net/images/artist/test/250x250.jpg';
+    const lista = await chiama('/artisti'); assert.equal(lista.status, 200); assert.equal(lista.dati[0].immagine_url, immagineCollegata);
+    assert.equal((await chiama('/ricerca?q=Artista')).dati.artisti[0].immagine_url, immagineCollegata);
+    const dettaglioEvento = await chiama('/eventi/1'); assert.equal(dettaglioEvento.status, 200); assert.equal(dettaglioEvento.dati.lineup[0].immagine_url, immagineCollegata);
+    const artista = await chiama('/artisti/1'); assert.equal(artista.dati.immagine_url, immagineCollegata);
+    assert.equal(artista.dati.immagine_provider, 'deezer'); assert.equal(artista.dati.credito_immagine, null);
+    const eventi = await chiama('/eventi?filtro=tutti'); assert.equal(eventi.dati[0].lineup[0].immagine_url, immagineCollegata);
+    assert.deepEqual(eventi.dati[1].lineup.map(a => a.id), [1, 2]);
+    assert.equal(eventi.dati[1].lineup[1].immagine_url, immagineLocale);
+    immagineCollegata = null;
+    assert.equal((await chiama('/artisti/1')).dati.immagine_url, immagineLocale);
+    assert.equal((await chiama('/artisti/1')).dati.credito_immagine.autore, 'Autore locale');
+    assert.equal((await chiama('/eventi?filtro=tutti')).dati[0].lineup[0].immagine_url, immagineLocale);
+    assert.equal((await chiama('/eventi/1')).dati.lineup[0].immagine_url, immagineLocale);
+    assert.equal((await chiama('/ricerca?q=Artista')).dati.artisti[0].immagine_url, immagineLocale);
+    immagineLocale = null;
+    assert.equal((await chiama('/artisti')).dati[0].immagine_url, null);
+});
+
+test('API pubbliche eventi: copertina Ticketmaster coerente in lista/dettaglio; assenza senza fallback artista', async () => {
+    immagineCollegata = 'https://cdn-images.dzcdn.net/images/artist/test/250x250.jpg';
+    copertina = { url: 'https://s1.ticketm.net/dam/a/evento.jpg', width: 1024, height: 576, ratio: '16_9', fallback: false, source: 'ticketmaster' };
+    for (const percorso of ['/eventi?filtro=tutti', '/eventi/1']) {
+        const r = await chiama(percorso, 'GET', { Cookie: '' }); assert.equal(r.status, 200);
+        const e = Array.isArray(r.dati) ? r.dati[0] : r.dati;
+        assert.equal(e.immagine_url, copertina.url); assert.deepEqual(e.immagine, copertina);
+        assert.equal(e.lineup[0].immagine_url, immagineCollegata);
+    }
+    copertina = null;
+    const e = (await chiama('/eventi/1')).dati;
+    assert.equal(e.immagine_url, null); assert.equal(e.immagine, null); assert.equal(e.lineup[0].immagine_url, immagineCollegata);
 });
