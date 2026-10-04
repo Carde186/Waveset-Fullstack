@@ -47,7 +47,7 @@ function creaRepository(connessione) {
                     FROM evento WHERE fonte='ticketmaster' AND id_esterno=? FOR UPDATE`, [fonte.id_esterno]);
                 let evento = righe[0];
                 const campi = fonte.campi;
-                let risultato = 'aggiornati', protetto = false, applicati, lineupApplicata, lineupCorrente;
+                let risultato = 'aggiornati', protetto = false, applicati, lineupApplicata, lineupCorrente, snapshotPrecedente;
                 if (!evento) {
                     if (!campi.titolo || !campi.data_evento || !fonte.lineup.length) {
                         await connessione.rollback(); return 'scartati';
@@ -60,7 +60,7 @@ function creaRepository(connessione) {
                         WHERE e.data_evento=? AND LOWER(e.luogo)=LOWER(?) AND ea.artista_id IN (?) LIMIT 1`,
                         [campi.data_evento, campi.luogo, fonte.lineup.map(a => a.artista_id)]);
                     if (doppioni.length) motivi.push('possibile_doppione');
-                    const stato = motivi.length ? 'in_coda' : 'pubblicato';
+                    const stato = 'da_valutare';
                     const motivo = motivi.length ? motivi.join('; ') : null;
                     const [inserito] = await q(`INSERT INTO evento (${CAMPI.join(',')},fonte,id_esterno,stato,motivo_revisione)
                         VALUES (?,?,?,?,?,?,?,'ticketmaster',?,?,?)`, [...CAMPI.map(k => campi[k]), fonte.id_esterno, stato, motivo]);
@@ -69,11 +69,12 @@ function creaRepository(connessione) {
                     lineupCorrente = lineupApplicata;
                     for (const a of lineupApplicata) await q('INSERT INTO evento_artista (evento_id,artista_id,id_attraction_ticketmaster) VALUES (?,?,?)',
                         [evento.id, a.artista_id, a.id_attraction_ticketmaster]);
-                    risultato = stato === 'pubblicato' ? 'pubblicati' : 'inCoda';
+                    risultato = 'daValutare';
                 } else {
                     evento.data_evento = evento.giorno;
                     const [fonti] = await q('SELECT * FROM ticketmaster_evento_fonte WHERE evento_id=? FOR UPDATE', [evento.id]);
                     const precedente = fonti[0];
+                    snapshotPrecedente = precedente ? json(precedente.snapshot) : null;
                     const [lineup] = await q('SELECT artista_id,id_attraction_ticketmaster FROM evento_artista WHERE evento_id=? ORDER BY artista_id', [evento.id]);
                     lineupCorrente = lineup;
                     applicati = precedente ? json(precedente.campi_applicati) : null;
@@ -101,6 +102,15 @@ function creaRepository(connessione) {
                     ultimo_avvistamento=VALUES(ultimo_avvistamento),assente_dal=NULL,modifiche_fonte=VALUES(modifiche_fonte)`,
                     [evento.id, JSON.stringify(fonte), applicati ? JSON.stringify(applicati) : null, lineupApplicata ? JSON.stringify(lineupApplicata) : null,
                         protetto, fonte.stato_fonte, sqlData(adesso), sqlData(adesso), modifiche]);
+                // Un cambiamento sostanziale invalida l'esito AI subito, prima del prossimo worker.
+                const identita = s => s && ({ campi: s.campi, attractions: s.attractions, lineup: s.lineup,
+                    stato_fonte: s.stato_fonte, data_incerta: s.data_incerta, venue: s.venue });
+                if (snapshotPrecedente && !uguali(identita(snapshotPrecedente), identita(fonte))) {
+                    await q(`UPDATE ollama_evento_job SET stato='da_valutare',generazione=generazione+1,input_hash=NULL,
+                        tentativi=0,prossimo_tentativo=UTC_TIMESTAMP(3),motivazione=NULL,errore=NULL,valutato_at=NULL WHERE evento_id=?`, [evento.id]);
+                    await q("UPDATE evento SET stato='da_valutare' WHERE id=?", [evento.id]);
+                    if (!protetto && applicati) await q(`UPDATE ticketmaster_evento_fonte SET campi_applicati=JSON_SET(campi_applicati,'$.stato','da_valutare') WHERE evento_id=?`, [evento.id]);
+                }
                 await connessione.commit(); return risultato;
             } catch (errore) { await connessione.rollback(); throw errore; }
         },

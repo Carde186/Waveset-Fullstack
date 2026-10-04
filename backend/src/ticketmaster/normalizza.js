@@ -1,3 +1,4 @@
+const { normalizzaImmagini, selezionaImmagine } = require('./immagini');
 const STATI = new Set(['onsale', 'offsale', 'canceled', 'postponed', 'rescheduled']);
 const nome = v => typeof v === 'string' ? v.trim().toLowerCase() : '';
 const testo = (v, max) => typeof v === 'string' && v.trim() ? Array.from(v.trim()).slice(0, max).join('') : null;
@@ -34,6 +35,9 @@ function normalizza(raw, artisti) {
     const ora = typeof localTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(localTime) ? (localTime.length === 5 ? `${localTime}:00` : localTime) : null;
     return {
         id_esterno: raw.id,
+        venue: { id: testo(venue?.id, 64), paese: testo(venue?.country?.name, 100) },
+        images: normalizzaImmagini(raw.images),
+        immagine: selezionaImmagine(raw.images),
         campi: { titolo: testo(raw.name, 200), data_evento: giorno(raw.dates?.start?.localDate), ora_evento: ora,
             luogo: testo(venue?.name, 200), citta: testo(venue?.city?.name, 100),
             latitudine: coordinata(venue?.location?.latitude, 90), longitudine: coordinata(venue?.location?.longitude, 180) },

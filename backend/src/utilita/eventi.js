@@ -1,17 +1,17 @@
 const pool = require('../config/database');
+const { immaginiArtisti } = require('../artistiProvider/immagini');
+const { leggiImmagine } = require('../ticketmaster/immagini');
 
 // Colonne di un evento, con alias "e" per la tabella evento. Condivise da
 // /eventi e /novita.
 const COLONNE_EVENTO = `e.id, e.titolo, e.data_evento, e.ora_evento, e.luogo,
-    e.citta, e.latitudine, e.longitudine`;
+    e.citta, e.latitudine, e.longitudine,
+    (SELECT JSON_EXTRACT(sf.snapshot, '$.immagine') FROM ticketmaster_evento_fonte sf
+     WHERE sf.evento_id=e.id) AS immagine_evento`;
 
-// Condizione da usare in ogni query pubblica (mai nella coda ADMIN, che deve
-// vedere anche 'in_coda'): un evento importato da Ticketmaster resta
-// invisibile finché l'ADMIN non lo approva. 'manuale' è sempre pubblicato
-// (default della colonna), quindi il catalogo esistente non cambia.
-// L'annullamento della fonte non riscrive la decisione ADMIN nel catalogo.
-// Gli eventi ufficialmente annullati escono dagli elenchi pubblici.
-const SOLO_PUBBLICATI = "e.stato = 'pubblicato' AND NOT EXISTS (SELECT 1 FROM ticketmaster_evento_fonte sf WHERE sf.evento_id=e.id AND sf.stato_fonte='canceled')";
+// Ticketmaster è pubblico solo con approvazione automatica persistita.
+// Il catalogo manuale e i filtri restano invariati. Una fonte annullata è nascosta.
+const SOLO_PUBBLICATI = "e.stato = 'pubblicato' AND (e.fonte <> 'ticketmaster' OR EXISTS (SELECT 1 FROM ollama_evento_job oj WHERE oj.evento_id=e.id AND oj.stato='approva')) AND NOT EXISTS (SELECT 1 FROM ticketmaster_evento_fonte sf WHERE sf.evento_id=e.id AND sf.stato_fonte='canceled')";
 
 // Condizione "ha in lineup almeno un artista seguito dall'utente ?".
 const CON_ARTISTA_SEGUITO = `EXISTS (
@@ -48,7 +48,7 @@ async function lineupPerEvento(idEventi) {
         [idEventi],
     );
 
-    for (const riga of righe) {
+    for (const riga of await immaginiArtisti(righe)) {
         lineup.get(riga.evento_id).push({
             id: riga.id,
             nome: riga.nome,
@@ -63,22 +63,27 @@ async function lineupPerEvento(idEventi) {
 async function formattaEventi(righe) {
     const lineup = await lineupPerEvento(righe.map(e => e.id));
 
-    return righe.map(evento => ({
-        id: evento.id,
-        titolo: evento.titolo,
-        data_evento: evento.data_evento,
-        ora_evento: evento.ora_evento,
-        luogo: evento.luogo,
-        citta: evento.citta,
-        latitudine: numeroONull(evento.latitudine),
-        longitudine: numeroONull(evento.longitudine),
-        lineup: lineup.get(evento.id),
-        ...(evento.fonte === 'ticketmaster' ? {
-            fonte: evento.fonte, stato_fonte: evento.stato_fonte ?? 'unknown',
-            ultimo_controllo: evento.ultimo_controllo ?? null,
-            assente_fonte: Boolean(evento.assente_fonte), modifiche_fonte: Boolean(evento.modifiche_fonte),
-        } : {}),
-    }));
+    return righe.map(evento => {
+        const immagine = leggiImmagine(evento.immagine_evento);
+        return {
+            id: evento.id,
+            titolo: evento.titolo,
+            data_evento: evento.data_evento,
+            ora_evento: evento.ora_evento,
+            luogo: evento.luogo,
+            citta: evento.citta,
+            immagine_url: immagine?.url ?? null,
+            immagine,
+            latitudine: numeroONull(evento.latitudine),
+            longitudine: numeroONull(evento.longitudine),
+            lineup: lineup.get(evento.id),
+            ...(evento.fonte === 'ticketmaster' ? {
+                fonte: evento.fonte, stato_fonte: evento.stato_fonte ?? 'unknown',
+                ultimo_controllo: evento.ultimo_controllo ?? null,
+                assente_fonte: Boolean(evento.assente_fonte), modifiche_fonte: Boolean(evento.modifiche_fonte),
+            } : {}),
+        };
+    });
 }
 
 module.exports = {

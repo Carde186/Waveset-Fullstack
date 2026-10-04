@@ -1,6 +1,7 @@
 const pool = require('../config/database');
 const servizioGeocodifica = require('../servizi/geocodifica');
 const servizioTicketmaster = require('../servizi/ticketmaster');
+const { normalizza } = require('./normalizza');
 
 // Chiamate come servizioX.funzione(...), non distrutte in una const al
 // require: i test le sostituiscono con mock.method sull'oggetto esportato,
@@ -183,7 +184,7 @@ async function importaArtista(artista, artistiPerNome, riepilogo) {
             motivi.push('possibile_doppione');
         }
 
-        const stato = motivi.length > 0 ? 'in_coda' : 'pubblicato';
+        const stato = 'da_valutare';
 
         const [risultato] = await pool.query(
             `INSERT INTO evento
@@ -212,7 +213,13 @@ async function importaArtista(artista, artistiPerNome, riepilogo) {
             );
         }
 
-        riepilogo[stato === 'pubblicato' ? 'pubblicati' : 'inCoda'] += 1;
+        // Snapshot separato: immagini e dati fonte non cambiano i campi curati.
+        const fonte = normalizza(evento, [...artistiPerNome.values()]);
+        await pool.query(`INSERT INTO ticketmaster_evento_fonte
+            (evento_id,snapshot,stato_fonte,ultimo_controllo,ultimo_avvistamento)
+            VALUES (?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
+            [risultato.insertId, JSON.stringify(fonte), fonte.stato_fonte]);
+        riepilogo.daValutare += 1;
     }
 }
 
@@ -229,6 +236,7 @@ async function importaEventi() {
 
     const riepilogo = {
         pubblicati: 0,
+        daValutare: 0,
         inCoda: 0,
         saltati: 0,
         senzaData: 0,

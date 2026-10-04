@@ -15,7 +15,7 @@ async function sincronizza({ repository, client, config, adesso = new Date(), id
     const lotto = scelti.slice(0, config.maxArtisti);
     const oggi = adesso.toISOString().slice(0, 10);
     const da = new Date(adesso.getTime() - 86400000).toISOString().slice(0, 10) + 'T00:00:00Z';
-    const r = { esito: 'ok', errore: null, artisti: 0, pubblicati: 0, inCoda: 0, aggiornati: 0, protetti: 0, scartati: 0, assenti: 0, falliti: 0, richieste: 0 };
+    const r = { esito: 'ok', errore: null, artisti: 0, pubblicati: 0, daValutare: 0, inCoda: 0, aggiornati: 0, protetti: 0, scartati: 0, assenti: 0, falliti: 0, richieste: 0 };
     let ritardoGlobale = 0;
     for (const artista of lotto) {
         let errore = null;

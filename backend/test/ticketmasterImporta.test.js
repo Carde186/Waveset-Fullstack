@@ -122,7 +122,7 @@ function mockaRicerca(t, { perKeyword, perAttractionId } = {}) {
 }
 
 describe('importaEventi — casi puliti', () => {
-    test('prima ricerca per nome: anche se tutto combacia, va in coda per conferma id artista', async t => {
+    test('prima ricerca per nome: anche se tutto combacia, resta da valutare da Ollama', async t => {
         mockaRicerca(t, {
             perKeyword: {
                 nome: 'Nova Circuit',
@@ -131,18 +131,18 @@ describe('importaEventi — casi puliti', () => {
         });
 
         const riepilogo = await importaEventi();
-        assert.equal(riepilogo.inCoda, 1);
+        assert.equal(riepilogo.daValutare, 1);
         assert.equal(riepilogo.pubblicati, 0);
 
         const [[evento]] = await db.query(
             'SELECT stato, motivo_revisione FROM evento WHERE titolo = ?',
             [`${PREFISSO}Prima associazione`],
         );
-        assert.equal(evento.stato, 'in_coda');
+        assert.equal(evento.stato, 'da_valutare');
         assert.equal(evento.motivo_revisione, 'id_artista_da_confermare');
     });
 
-    test('ricerca per attractionId (artista già confermato): pubblicato subito', async t => {
+    test('ricerca per attractionId (artista già confermato): da valutare anche con ID confermato', async t => {
         await db.query('UPDATE artista SET id_ticketmaster = ? WHERE id = ?', [
             'attraction-confermato-sunset',
             sunsetGrid.id,
@@ -162,13 +162,13 @@ describe('importaEventi — casi puliti', () => {
         });
 
         const riepilogo = await importaEventi();
-        assert.equal(riepilogo.pubblicati, 1);
+        assert.equal(riepilogo.daValutare, 1);
 
         const [[evento]] = await db.query(
             'SELECT stato, motivo_revisione, fonte, id_esterno FROM evento WHERE titolo = ?',
             [`${PREFISSO}Via attractionId`],
         );
-        assert.equal(evento.stato, 'pubblicato');
+        assert.equal(evento.stato, 'da_valutare');
         assert.equal(evento.motivo_revisione, null);
         assert.equal(evento.fonte, 'ticketmaster');
     });
@@ -314,7 +314,7 @@ describe('importaEventi — matching per nome esatto, senza fidarsi del subType'
 });
 
 describe('importaEventi — motivi di coda', () => {
-    test('coordinate 0.000000 e geocodifica riuscita: pubblicato con le coordinate geocodificate', async t => {
+    test('coordinate 0.000000 e geocodifica riuscita: da valutare con le coordinate geocodificate', async t => {
         await db.query('UPDATE artista SET id_ticketmaster = ? WHERE id = ?', [
             'attraction-geo-ok',
             lucentWave.id,
@@ -349,12 +349,12 @@ describe('importaEventi — motivi di coda', () => {
             'SELECT stato, latitudine, longitudine FROM evento WHERE titolo = ?',
             [`${PREFISSO}Coordinate da geocodifica`],
         );
-        assert.equal(evento.stato, 'pubblicato');
+        assert.equal(evento.stato, 'da_valutare');
         assert.equal(Number(evento.latitudine), 41.9);
         assert.equal(Number(evento.longitudine), 12.5);
     });
 
-    test('coordinate 0.000000 e geocodifica fallita: in coda per coordinate irrecuperabili', async t => {
+    test('coordinate 0.000000 e geocodifica fallita: da valutare con coordinate irrecuperabili', async t => {
         await db.query('UPDATE artista SET id_ticketmaster = ? WHERE id = ?', [
             'attraction-geo-fail',
             lucentWave.id,
@@ -388,7 +388,7 @@ describe('importaEventi — motivi di coda', () => {
             'SELECT stato, motivo_revisione, latitudine FROM evento WHERE titolo = ?',
             [`${PREFISSO}Coordinate irrecuperabili`],
         );
-        assert.equal(evento.stato, 'in_coda');
+        assert.equal(evento.stato, 'da_valutare');
         assert.equal(evento.motivo_revisione, 'coordinate_irrecuperabili');
         assert.equal(evento.latitudine, null);
     });
@@ -429,7 +429,7 @@ describe('importaEventi — motivi di coda', () => {
             'SELECT stato, motivo_revisione FROM evento WHERE titolo = ?',
             [`${PREFISSO}Nessun match`],
         );
-        assert.equal(evento.stato, 'in_coda');
+        assert.equal(evento.stato, 'da_valutare');
         assert.equal(
             evento.motivo_revisione,
             'nessuna_attraction_riconosciuta',
@@ -467,7 +467,7 @@ describe('importaEventi — motivi di coda', () => {
             'SELECT stato, motivo_revisione FROM evento WHERE titolo = ?',
             [`${PREFISSO}Lineup non confermato`],
         );
-        assert.equal(evento.stato, 'in_coda');
+        assert.equal(evento.stato, 'da_valutare');
         assert.equal(evento.motivo_revisione, 'lineup_non_confermato');
 
         const [righeLineup] = await db.query(
@@ -524,7 +524,7 @@ describe('importaEventi — motivi di coda', () => {
             'SELECT stato, motivo_revisione FROM evento WHERE titolo = ?',
             [`${PREFISSO}Doppione da Ticketmaster`],
         );
-        assert.equal(evento.stato, 'in_coda');
+        assert.equal(evento.stato, 'da_valutare');
         assert.match(evento.motivo_revisione, /possibile_doppione/);
     });
 });

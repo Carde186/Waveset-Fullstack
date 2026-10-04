@@ -39,9 +39,9 @@ test('Ticketmaster: integrazione DB, idempotenza, modifiche, ADMIN, annullamenti
         const [creato] = await conn.query('INSERT INTO artista (nome,id_ticketmaster) VALUES (?,?)', [`Sync test ${tag}`, idAttrazione]);
         artista = { id: creato.insertId, nome: `Sync test ${tag}`, id_ticketmaster: idAttrazione };
         let principale;
-        await t.test('nuovo evento confermato pubblicato; ripetizione non duplica righe o lineup', async () => {
+        await t.test('nuovo evento confermato da valutare; ripetizione non duplica righe o lineup', async () => {
             principale = (await salva('a')).riga;
-            assert.equal(principale.stato, 'pubblicato');
+            assert.equal(principale.stato, 'da_valutare');
             assert.equal((await salva('a')).riga.id, principale.id);
             const [[n]] = await conn.query('SELECT COUNT(*) n FROM evento_artista WHERE evento_id=?', [principale.id]);
             assert.equal(n.n, 1); assert.equal((await fonteDi(principale.id)).protetto_admin, 0);
@@ -76,12 +76,12 @@ test('Ticketmaster: integrazione DB, idempotenza, modifiche, ADMIN, annullamenti
             await assert.rejects(() => repo.salva(fonte, ora), e => e.code === 'ER_NO_REFERENCED_ROW_2');
             const [[n]] = await conn.query('SELECT COUNT(*) n FROM evento WHERE fonte="ticketmaster" AND id_esterno=?', [fonte.id_esterno]); assert.equal(n.n, 0);
         });
-        await t.test('annullamento esplicito escluso dalle query pubbliche senza riscrivere approvazione ADMIN', async () => {
+        await t.test('annullamento esplicito escluso dalle query pubbliche senza perdere dati curati ADMIN', async () => {
             await salva('a', { dates: { start: { localDate: '2027-05-02' }, status: { code: 'canceled' } } });
             const [visibili] = await conn.query(`SELECT e.id FROM evento e WHERE e.id=? AND ${SOLO_PUBBLICATI}`, [principale.id]);
             assert.equal(visibili.length, 0);
             const [[core]] = await conn.query('SELECT stato,titolo FROM evento WHERE id=?', [principale.id]);
-            assert.equal(core.stato, 'pubblicato'); assert.equal(core.titolo, 'Titolo curato ADMIN');
+            assert.equal(core.stato, 'da_valutare'); assert.equal(core.titolo, 'Titolo curato ADMIN');
         });
         await t.test('evento protetto identico alla fonte non genera falsi avvisi per DECIMAL o ordine JSON', async () => {
             const identico = (await salva('identico')).riga;
@@ -105,19 +105,22 @@ test('Ticketmaster: integrazione DB, idempotenza, modifiche, ADMIN, annullamenti
         server = await new Promise(r => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
         const url = `http://127.0.0.1:${server.address().port}/admin`;
         const richiesta = (id, action, body) => fetch(`${url}/${id}${action}`, { method: body ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-        await t.test('candidato non confermato in coda; PATCH/approvazione ADMIN proteggono atomicamente', async () => {
-            const candidato = (await salva('b', {}, false)).riga; assert.equal(candidato.stato, 'in_coda');
-            assert.equal((await richiesta(candidato.id, '', { titolo: 'Corretto' })).status, 204);
-            assert.equal((await richiesta(candidato.id, '/approva')).status, 204);
+        await t.test('azioni manuali disabilitate; correzioni curate preesistenti preservate', async () => {
+            const candidato = (await salva('b', {}, false)).riga; assert.equal(candidato.stato, 'da_valutare');
+            assert.equal((await fetch(`${url}/${candidato.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ titolo: 'Correzione' }) })).status, 410);
+            assert.equal((await fetch(`${url}/${candidato.id}/approva`, { method: 'POST' })).status, 410);
+            await conn.query('UPDATE evento SET titolo=? WHERE id=?', ['Correzione curata preesistente', candidato.id]);
+            await salva('b', {}, false);
+            const [[e]] = await conn.query('SELECT stato,titolo FROM evento WHERE id=?', [candidato.id]);
+            assert.equal(e.stato, 'da_valutare'); assert.equal(e.titolo, 'Correzione curata preesistente');
             assert.equal((await fonteDi(candidato.id)).protetto_admin, 1);
-            const rispostaFonte = await fetch(`${url}/${candidato.id}/fonte`); assert.equal(rispostaFonte.status, 200);
-            const fonteApi = await rispostaFonte.json(); assert.equal(fonteApi.protetto_admin, true); assert.equal(fonteApi.ultimo_controllo, '2026-10-03T10:00:00Z');
-            const dopo = await salva('b', { name: 'Fonte diversa' }); assert.equal(dopo.riga.stato, 'pubblicato'); assert.equal(dopo.riga.titolo, 'Corretto');
         });
-        await t.test('scarto ADMIN permanente: il sync non ripubblica', async () => {
-            const candidato = (await salva('c', {}, false)).riga;
-            assert.equal((await richiesta(candidato.id, '/scarta')).status, 204);
-            assert.equal((await salva('c')).riga.stato, 'scartato'); assert.equal((await fonteDi(candidato.id)).protetto_admin, 1);
+        await t.test('rifiuto persistito non viene promosso dalla sync identica', async () => {
+            const rifiutato = (await salva('c')).riga;
+            assert.equal((await fetch(`${url}/${rifiutato.id}/scarta`, { method: 'POST' })).status, 410);
+            await conn.query("UPDATE evento SET stato='scartato' WHERE id=?", [rifiutato.id]);
+            await salva('c');
+            const [[e]] = await conn.query('SELECT stato FROM evento WHERE id=?', [rifiutato.id]); assert.equal(e.stato, 'scartato');
         });
         await t.test('secondo esecutore rifiutato dal GET_LOCK MySQL reale', async () => {
             assert.deepEqual(await conBlocco(pool, () => assert.fail('lock duplicato')), { esito: 'occupato' });

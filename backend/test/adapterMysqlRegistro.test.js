@@ -6,25 +6,36 @@ const { creaRegistro, SCHEMA } = require('./helpers/registroFixture');
 const A = require('./helpers/adapterMysqlRegistro');
 const copia = x => structuredClone(x);
 const tabs = Object.keys(SCHEMA);
+const tutte = Object.keys(A.SCHEMA_SNAPSHOT);
 const impronta = label => createHash('sha256').update(label).digest('hex');
 const riga = (id, fk = {}) => ({ id, ...fk, impronta: impronta(`riga-${id}`) });
 function iniziale() {
-    const s = Object.fromEntries(tabs.map(t => [t, []]));
+    const s = Object.fromEntries(tutte.map(t => [t, []]));
     s.utente = [1, 2, 3].map(id => riga(id));
     s.artista = [riga(1)]; s.genere = [riga(1)];
     s.utente_artista = [1, 2].map(utente_id => ({ utente_id, artista_id: 1, impronta: impronta(`follow-${utente_id}`) }));
     return s;
 }
+function serviziPresenti(s) {
+    s.evento = [riga(1)];
+    s.ticketmaster_evento_fonte = [{ evento_id: 1, impronta: impronta('snapshot-fonte') }];
+    s.ticketmaster_artista_sync = [{ artista_id: 1, impronta: impronta('sync-artista') }];
+    s.ticketmaster_sync_stato = [riga(1)];
+    s.artista_provider_link = [riga(1, { artista_id: 1 })];
+    s.artista_ticketmaster_presenza = [{ link_id: 1, impronta: impronta('presenza') }];
+    s.ollama_evento_job = [{ evento_id: 1, impronta: impronta('job') }];
+    s.ollama_evento_audit = [riga(1, { evento_id: 1, artista_id: null })];
+}
 function metadati() {
-    const ordine = tabs.slice().sort();
+    const ordine = tutte.slice().sort();
     return {
         tabelle: ordine.map(tabella => ({ tabella, motore: 'InnoDB', tipo: 'BASE TABLE' })),
         colonne: ordine.flatMap(tabella => A.COLONNE[tabella].split(' ').map(x => {
             const [colonna, tipo] = x.split(':');
-            return { tabella, colonna, tipo, temporale: ['time', 'datetime', 'timestamp'].includes(tipo) ? 0 : null, precisione: tipo === 'decimal' ? 9 : null, scala: tipo === 'decimal' ? 6 : null };
+            return { tabella, colonna, tipo, temporale: ['time', 'datetime', 'timestamp'].includes(tipo) ? (A.SERVIZI[tabella] ? 3 : 0) : null, precisione: tipo === 'decimal' ? (tabella === 'ollama_evento_audit' ? 6 : 9) : null, scala: tipo === 'decimal' ? (tabella === 'ollama_evento_audit' ? 5 : 6) : null };
         })),
-        pk: ordine.flatMap(tabella => SCHEMA[tabella].pk.map(colonna => ({ tabella, colonna }))),
-        fk: tabs.flatMap(figlio => Object.entries(SCHEMA[figlio].fk).map(([colonna, padre]) => ({ schema_figlio: 'waveset_test', figlio, colonna, schema_padre: 'waveset_test', padre, pk: 'id', regola: figlio === 'brano' && colonna === 'album_id' ? 'SET NULL' : 'CASCADE' }))),
+        pk: ordine.flatMap(tabella => A.SCHEMA_SNAPSHOT[tabella].pk.map(colonna => ({ tabella, colonna }))),
+        fk: tutte.flatMap(figlio => Object.entries(A.SCHEMA_SNAPSHOT[figlio].fk).map(([colonna, padre]) => ({ schema_figlio: 'waveset_test', figlio, colonna, schema_padre: 'waveset_test', padre, pk: 'id', regola: (figlio === 'brano' && colonna === 'album_id') || (figlio === 'ollama_evento_audit' && colonna === 'artista_id') ? 'SET NULL' : 'CASCADE' }))),
         trigger: [{ totale: 0 }],
     };
 }
@@ -32,6 +43,7 @@ function metadati() {
 // INSERT, driver mysql2, aiuto/preparaAmbiente, socket, Docker o database.
 function trasporto(opzioni = {}) {
     let s = iniziale(), backup, round = 0, commit = 0;
+    opzioni.prepara?.(s);
     const chiamate = [], canali = [], m = metadati();
     const conn = {
         config: { host: ambiente.DB_HOST, port: Number(ambiente.DB_PORT), database: ambiente.DB_NAME,
@@ -50,7 +62,7 @@ function trasporto(opzioni = {}) {
                 assert.deepEqual(p, k === 'fk' ? ['waveset_test', 'waveset_test'] : ['waveset_test']);
                 chiamate.push(`meta:${k}`); return [copia(m[k]), []];
             }
-            for (const t of tabs) for (const blocca of [false, true]) if (sql === A.snapshotSQL(t, blocca)) {
+            for (const t of tutte) for (const blocca of [false, true]) if (sql === A.snapshotSQL(t, blocca)) {
                 assert.equal(p.length, 1); assert.ok(Buffer.isBuffer(p[0]) && p[0].length === 32);
                 // Non conservare mai il parametro pepper, neppure nel mock.
                 chiamate.push(`read:${t}:${blocca}`);
@@ -58,6 +70,7 @@ function trasporto(opzioni = {}) {
                     round++;
                     if (opzioni.erroreLettura === round) throw new Error('messaggio driver da non propagare');
                     if (opzioni.mutaSeconda && round === 3) s.utente[0].impronta = impronta('modificata');
+                    if (round === 3) opzioni.mutaServiziSeconda?.(s);
                 }
                 return [copia(s[t]), []];
             }
@@ -128,7 +141,7 @@ test('routing: SELECT con binding e DELETE per PK restano su execute', async () 
         for (const k of ['tabelle', 'colonne', 'pk', 'fk', 'trigger']) {
             assert.ok(c.f.canali.some(x => x.metodo === 'execute' && x.sql === A.SQL[k]));
         }
-        for (const t of tabs) for (const blocca of [false, true]) {
+        for (const t of tutte) for (const blocca of [false, true]) {
             assert.ok(c.f.canali.some(x => x.metodo === 'execute' && x.sql === A.snapshotSQL(t, blocca)));
         }
         assert.ok(c.f.canali.some(x => x.metodo === 'execute' && x.sql === A.deletes.artista));
@@ -359,8 +372,67 @@ test('metadati divergenti bloccano engine, colonne, precisione, PK, FK e trigger
     A.verificaMetadati(metadati());
     const mutazioni = [m => { m.tabelle[0].motore = 'MyISAM'; }, m => { m.colonne.pop(); },
         m => { m.colonne.find(r => r.tipo === 'time').temporale = 6; }, m => { m.colonne.find(r => r.tipo === 'decimal').scala = 5; },
-        m => { m.pk.pop(); }, m => { m.fk[0].schema_figlio = 'esterno'; }, m => { m.fk[0].regola = 'SET NULL'; }, m => { m.trigger[0].totale = 1; }];
+        m => { m.pk.pop(); }, m => { m.fk[0].schema_figlio = 'esterno'; }, m => { m.fk[0].regola = 'SET NULL'; }, m => { m.trigger[0].totale = 1; },
+        m => { m.tabelle.push({ tabella: 'tabella_sconosciuta', motore: 'InnoDB', tipo: 'BASE TABLE' }); },
+        m => { m.colonne.find(r => r.tabella === 'ollama_evento_job' && r.colonna === 'valutato_at').temporale = 0; },
+        m => { m.colonne.find(r => r.tabella === 'ollama_evento_audit' && r.colonna === 'confidenza').scala = 6; },
+        m => { m.fk.find(r => r.figlio === 'ollama_evento_audit' && r.colonna === 'artista_id').regola = 'CASCADE'; }];
     for (const cambia of mutazioni) { const m = metadati(); cambia(m); assert.throws(() => A.verificaMetadati(m), /^Error: SCHEMA_/); }
+});
+test('servizi 13–16 presenti: snapshot completo preservato, DELETE limitate alle fixture originarie', async () => {
+    const c = await apri({ prepara: serviziPresenti });
+    try {
+        assert.equal(Object.keys(c.baseline).length, 19);
+        inserisci(c, 'artista', 101);
+        await c.registro.pulisci(c.adapter);
+        assert.deepEqual(c.f.s, c.baseline);
+        assert.deepEqual(cancellazioni(c.f), [{ delete: 'artista', pk: [101] }]);
+        for (const t of Object.keys(A.SERVIZI)) {
+            assert.equal(A.deletes[t], undefined);
+            assert.equal(A.selezioni[t], undefined);
+            assert.throws(() => c.registro.registraId(t, { insertId: 101, affectedRows: 1 }), /PK composte/);
+        }
+    } finally { await c.adapter.chiudi(); }
+});
+for (const tabella of Object.keys(A.SERVIZI)) {
+    for (const modifica of ['impronta', 'nuova', 'assente']) {
+        test(`servizio protetto ${tabella}: ${modifica} blocca prima della DELETE`, async () => {
+            const c = await apri({ prepara: serviziPresenti });
+            try {
+                inserisci(c, 'artista', 101);
+                if (modifica === 'impronta') c.f.s[tabella][0].impronta = impronta('dati-servizio-cambiati');
+                if (modifica === 'assente') c.f.s[tabella] = [];
+                if (modifica === 'nuova') {
+                    const nuova = copia(c.f.s[tabella][0]);
+                    for (const pk of A.SCHEMA_SNAPSHOT[tabella].pk) nuova[pk] = 101;
+                    c.f.s[tabella].push(nuova);
+                }
+                const prima = copia(c.f.s);
+                await assert.rejects(c.registro.pulisci(c.adapter), /STATO_SERVIZI_MODIFICATO/);
+                assert.deepEqual(cancellazioni(c.f), []);
+                assert.deepEqual(c.f.s, prima);
+                assert.equal(c.f.chiamate.filter(x => x === 'rollback').length, 1);
+            } finally { await c.adapter.chiudi(); }
+        });
+    }
+}
+test('audit cambiato alla seconda lettura: rollback anche delle DELETE già eseguite', async () => {
+    const c = await apri({ prepara: serviziPresenti, mutaServiziSeconda: s => { s.ollama_evento_audit[0].impronta = impronta('raw-cambiato'); } });
+    try {
+        inserisci(c, 'artista', 101); const prima = copia(c.f.s);
+        await assert.rejects(c.registro.pulisci(c.adapter), /STATO_PRIMA_COMMIT/);
+        assert.deepEqual(c.f.s, prima);
+        assert.equal(c.f.chiamate.filter(x => x === 'commit').length, 1);
+        assert.equal(c.f.chiamate.filter(x => x === 'rollback').length, 1);
+    } finally { await c.adapter.chiudi(); }
+});
+test('impronta servizi include JSON/raw e precisione temporale, senza esporne i valori', () => {
+    for (const t of Object.keys(A.SERVIZI)) {
+        const sql = A.snapshotSQL(t, true);
+        for (const [colonna] of A.COLONNE[t].split(' ').map(x => x.split(':'))) assert(sql.includes(`CAST(${colonna}`) || sql.includes(`DATE_FORMAT(${colonna}`));
+        assert(sql.endsWith(' FOR UPDATE'));
+    }
+    assert(A.snapshotSQL('ollama_evento_audit', false).includes('%f'));
 });
 test('snapshot equivalente: diverso ordine di righe e proprietà, stessi PK/FK/impronte', () => {
     const a = iniziale(), b = copia(a); b.utente.reverse();
@@ -391,14 +463,14 @@ test('inventario colonne/tipi corrisponde agli init SQL versionati senza eseguir
         .map(f => fs.readFileSync(path.join(dir, f), 'utf8').replace(/--[^\n]*/g, '')).join('\n');
     const inventario = {};
     const tipo = x => x.toLowerCase() === 'boolean' ? 'tinyint' : x.toLowerCase();
-    for (const m of sql.matchAll(/CREATE TABLE (\w+)\s*\(([\s\S]*?)\) ENGINE=/g)) {
-        inventario[m[1]] = [...m[2].matchAll(/^\s*(\w+)\s+(INT|VARCHAR|TEXT|CHAR|ENUM|DATE|TIME|DATETIME|TIMESTAMP|DECIMAL|BOOLEAN)\b/gm)]
+    for (const m of sql.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?(\w+)\s*\(([\s\S]*?)\) ENGINE=/g)) {
+        inventario[m[1]] = [...m[2].matchAll(/^\s*(\w+)\s+(INT|BIGINT|TINYINT|JSON|VARCHAR|TEXT|CHAR|ENUM|DATE|TIME|DATETIME|TIMESTAMP|DECIMAL|BOOLEAN)\b/gm)]
             .map(x => `${x[1]}:${tipo(x[2])}`);
     }
     for (const m of sql.matchAll(/ALTER TABLE (\w+)([\s\S]*?);/g)) {
         for (const x of m[2].matchAll(/ADD COLUMN (\w+)\s+(\w+)/g)) inventario[m[1]].push(`${x[1]}:${tipo(x[2])}`);
     }
-    assert.deepEqual(Object.keys(inventario).sort(), tabs.slice().sort());
-    for (const t of tabs) assert.equal(inventario[t].join(' '), A.COLONNE[t]);
+    assert.deepEqual(Object.keys(inventario).sort(), tutte.slice().sort());
+    for (const t of tutte) assert.equal(inventario[t].join(' '), A.COLONNE[t]);
     // Parser solo per inventario DDL offline; nessuna interpretazione di INSERT.
 });

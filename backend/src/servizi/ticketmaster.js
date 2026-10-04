@@ -66,6 +66,24 @@ function creaClientTicketmaster({
     }
     return {
         cercaPagine,
+        async cercaAttractions(keyword) {
+            if (typeof keyword !== 'string' || !keyword.trim() || keyword.length > 200) throw new ErroreTicketmaster('PARAMETRI_NON_VALIDI');
+            const risultati = new Map();
+            for (let page = 0; page < maxPagine; page++) {
+                const dati = await leggi('attractions.json', { keyword: keyword.trim(), size: '200', page: String(page), locale: '*' });
+                const elementi = dati._embedded?.attractions;
+                if (!Array.isArray(elementi) && !(elementi === undefined && dati.page?.totalElements === 0)) throw new ErroreTicketmaster('RISPOSTA_NON_VALIDA');
+                for (const r of elementi ?? []) {
+                    if (!r || typeof r.id !== 'string' || !/^[\w-]{1,64}$/.test(r.id) || typeof r.name !== 'string' || !r.name.trim()) throw new ErroreTicketmaster('RISPOSTA_NON_VALIDA');
+                    risultati.set(r.id, { id: r.id, name: r.name });
+                }
+                const pagine = dati.page?.totalPages;
+                if (pagine !== undefined && (!Number.isInteger(pagine) || pagine < 0)) throw new ErroreTicketmaster('RISPOSTA_NON_VALIDA');
+                if (Number.isInteger(pagine) && page + 1 >= pagine) return [...risultati.values()];
+                if (pagine === undefined && (elementi?.length ?? 0) < 200 && !dati._links?.next) return [...risultati.values()];
+            }
+            throw new ErroreTicketmaster('PAGINAZIONE_TRONCATA');
+        },
         recuperaEvento: id => {
             if (typeof id !== 'string' || !/^[\w-]{1,64}$/.test(id)) throw new ErroreTicketmaster('ID_NON_VALIDO');
             return leggi(`events/${encodeURIComponent(id)}.json`, {}, true);
