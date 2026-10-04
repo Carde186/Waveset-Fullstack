@@ -1,0 +1,47 @@
+.copertina {
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--linea);
+    border-radius: 14px;
+    background: var(--pannello);
+}
+
+.copertina img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
+
+.hero {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    aspect-ratio: auto;
+    border: 0;
+    border-radius: 0;
+}
+
+.segnaposto {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    height: 100%;
+    padding: 16px;
+    color: var(--tenue);
+    text-align: center;
+    font-size: 12px;
+}
+
+.segnaposto svg {
+    width: 64px;
+    height: 64px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    flex-shrink: 0;
+}
