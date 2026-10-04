@@ -6,3 +6,8 @@ node_modules/
 *.dump
 backup*/
 CLAUDE.md
+# File di coordinamento progetto (non versionati)
+PROMPT_COMPLETAMENTO.md
+PROMPT_PERPLEXITY.md
+WAVESET_HANDOFF.md
+risultati-commit.md
