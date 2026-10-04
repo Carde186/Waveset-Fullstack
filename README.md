@@ -1,6 +1,6 @@
 # Waveset Fullstack
 
-Piattaforma didattica di scoperta musicale elettronica: gli ospiti esplorano musica ed eventi, gli utenti registrati seguono artisti e gestiscono playlist, un ADMIN gestisce catalogo, eventi e revisioni. Apple Music e Spotify sono destinazioni esterne, non un player integrato.
+Piattaforma didattica di scoperta musicale elettronica: gli ospiti esplorano musica ed eventi, gli utenti registrati seguono artisti e gestiscono playlist, un ADMIN gestisce catalogo, eventi e revisioni. Deezer è il provider artisti predefinito; Apple Music Catalog API resta un’alternativa opzionale. Ticketmaster è la fonte degli eventi. Ollama valida automaticamente la relazione evento–artista. Non è un player integrato.
 
 > **Stato: lavori in corso. Il Fullstack NON è completo.**
 > Oggi esistono backend, database e due Compose. Il frontend web ha accesso, registrazione, area, Esplora locale ed Eventi con dettaglio e Google Maps configurabile. La verifica con browser e Compose di test riguarda l'incremento precedente; Eventi e Maps sono stati verificati sull'host con API e SDK simulati. Il Compose normale resta senza frontend. Playlist web è ancora da implementare.
@@ -30,7 +30,7 @@ La tabella include verifiche precedenti, riepilogate in `RIASSUNTO-CONVERSAZIONE
 
 | Componente | Stato |
 |---|---|
-| **Backend** Node.js + Express + MySQL (`backend/`) | Funziona: API di catalogo, ricerca locale, eventi, novità, follow, playlist, login/logout con sessioni, route riservate ad ADMIN (coda di revisione eventi, anteprime Spotify e Deezer). |
+| **Backend** Node.js + Express + MySQL (`backend/`) | Funziona: API di catalogo, ricerca locale, eventi, novità, follow, playlist, login/logout con sessioni, route riservate ad ADMIN (registro di validazioni eventi, anteprime Spotify e Deezer). |
 | **MySQL 8.4** | Funziona nei due ambienti, con schema e catalogo demo creati dagli script di `backend/db/init/` al primo avvio su volume vuoto. |
 | **Compose normale** (`docker-compose.yml`, progetto `waveset-fullstack`) | Funziona: `mysql` → `admin-init` → `backend`. Al primo avvio nel DB c'è **un solo utente, un ADMIN**. |
 | **Compose di test** (`docker-compose.test.yml`, progetto `waveset-test`) | Frontend nginx verificato insieme a backend e MySQL, con DB `waveset_test` separato. Volume esistente riutilizzato; il seed già completato non è stato rieseguito. |
@@ -56,14 +56,14 @@ Obiettivi del progetto (non presenti nel codice). Stato per voce:
 | Registrazione autonoma di nuovi USER | **Verificata nel Compose di test** con schermata web e login successivo separato. |
 | Sessione per il browser (cookie HttpOnly, CSRF, `Origin`, sessione web di 7 giorni) | **Verificata nel Compose di test.** Restano la configurazione web dello stack normale e la cancellazione del cookie revocato su 401 lato backend. |
 | Scelta e documentazione della sessione per il browser | **Scelta: cookie HttpOnly + CSRF in memoria.** Il contratto bearer preesistente resta disponibile. |
-| Ricerca Apple live (iTunes Search API) mediata dal backend, distinta dal catalogo locale | **Da implementare** |
+| Apple Music Catalog API, ricerca e collegamento artisti da ADMIN | Implementata: token ES256 server, ricerca/dettaglio, persistenza e sync manuale. Vedi [integrazione Apple Music](docs/apple-music.md). Prova live subordinata a credenziali server. |
 | Promozione controllata di un risultato Apple nel catalogo locale | **Da implementare** |
 | Sezione «In tendenza» da feed Apple | **Da implementare** (opzionale) |
 | Scheduler automatico di sincronizzazione Ticketmaster (un solo esecutore, cache, backoff, protezione delle correzioni ADMIN) | Implementato: worker Compose, comando manuale, lock MySQL e snapshot separati. Vedi [Sincronizzazione Ticketmaster](#sincronizzazione-ticketmaster). |
 | Google Maps JavaScript API nella pagina Eventi, con i quattro layer Standard / Scura / Satellite / Ibrida | Implementata nel frontend; SDK simulato nei test, non verificata con chiave e Google reali. Senza configurazione resta disponibile la lista. |
-| Ollama locale per la revisione ADMIN dei casi ambigui Apple ↔ Ticketmaster | **Da implementare** |
+| Validazione automatica Ollama delle relazioni artista–evento Ticketmaster | Implementata: worker, JSON Schema, controlli backend, retry e audit. Vedi [setup e flusso](docs/ollama-eventi.md) |
 | Rimozione della dipendenza dalla Spotify Web API | **Da rivedere**: nessuna chiave Spotify è richiesta per avviare, ma esiste ancora un'anteprima ADMIN opzionale che la usa |
-| Test per le funzioni future (Apple live, scheduler, Ollama, Maps) | Ticketmaster dispone di test della fonte simulata, scheduler e integrazione DB. Apple live e Ollama restano da implementare. Maps e sessione browser hanno verifiche dedicate. |
+| Test per le funzioni future (Apple live, scheduler, Ollama, Maps) | Ticketmaster dispone di test della fonte simulata, scheduler e integrazione DB. Apple Music dispone di test mockati e integrazione MySQL; Ollama dispone di test mockati, integrazione MySQL e prova locale con qwen3:4b. Maps e sessione browser hanno verifiche dedicate. |
 
 ## Prerequisiti
 
@@ -236,7 +236,7 @@ Nessun valore è riportato qui. Gli esempi sono `.env.example` e `.env.test.exam
 | Variabile | A cosa serve oggi |
 |---|---|
 | `TICKETMASTER_API_KEY` | Discovery API, solo backend/worker. Senza chiave il worker resta inattivo e il catalogo persistito rimane utilizzabile. Non usare il prefisso `VITE_`. |
-| `GOOGLE_GEOCODING_API_KEY` | Solo il vecchio modulo di import usa questo fallback. Il nuovo worker non chiama Google: eventi senza coordinate entrano nella coda ADMIN. |
+| `GOOGLE_GEOCODING_API_KEY` | Solo il vecchio modulo di import usa questo fallback. Il nuovo worker non chiama Google: eventi importati passano dalla validazione automatica. |
 | `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | solo l'anteprima ADMIN Spotify (`/api/admin/spotify/anteprima`). Senza queste chiavi quella route risponde 503 e il resto funziona. **Non servono per avviare o usare il progetto.** |
 | `RATE_LIMIT_REGISTRAZIONE_MAX`, `RATE_LIMIT_REGISTRAZIONE_FINESTRA_SEC` | soglie del rate limit della registrazione. **Valori normali: 30 richieste per IP ogni 900 secondi.** |
 | `RATE_LIMIT_LOGIN_COPPIA_MAX`, `RATE_LIMIT_LOGIN_IP_FALLIMENTI_MAX`, `RATE_LIMIT_LOGIN_IP_TOTALE_MAX`, `RATE_LIMIT_LOGIN_FINESTRA_SEC` | soglie del rate limit del login. **Valori normali: 10 fallimenti per IP+email, 50 fallimenti per IP, 100 tentativi totali per IP, finestra 900 secondi.** |
@@ -250,7 +250,7 @@ Sul rate limit: se le variabili sono assenti o vuote valgono i valori normali; u
 |---|---|
 | `VITE_GOOGLE_MAPS_API_KEY`, `VITE_GOOGLE_MAPS_MAP_ID` | Mappa della pagina Eventi; esempi vuoti in `frontend/.env.example` e `.env.test.example`. Valori locali in `frontend/.env.local` per Vite o `.env.test` per la build Compose. Chiave browser visibile nel bundle: proteggere con referrer HTTP ammessi e restrizione Maps JavaScript API. Occorre un Map ID JavaScript per i marker avanzati. Servizio e fatturazione vanno attivati nel progetto Google Cloud. [Istruzioni frontend](frontend/README.md#eventi-e-google-maps). |
 | Ticketmaster (già sopra) | Sincronizzazione automatica degli eventi. |
-| URL e nome del modello **Ollama** | Revisione AI locale. Ollama non usa chiavi cloud; non sono previsti fallback cloud. |
+| URL e nome del modello **Ollama** | Validazione automatica locale. Ollama non usa chiavi cloud; non sono previsti fallback cloud. |
 
 Le API pubbliche di iTunes Search non richiedono chiavi.
 
@@ -306,7 +306,7 @@ Non tutti i dati hanno lo stesso valore. **Nulla di quanto segue è un catalogo 
 | **Link esterni verificati** | `backend/src/spotify/`, `backend/src/itunes/` | Mappature statiche di album/brani reali con link Spotify e Apple Music verificati. Si applicano solo se nel DB esiste una voce con lo stesso nome artista e titolo. |
 | **Script di importazione del catalogo reale** | `backend/scripts/importaCatalogoRealeLotto*.js` | Ereditati dal backend originale. **Non sono eseguiti da nessun Compose** e non sono stati provati in questa sessione. |
 
-Il database persistente dell'ambiente normale è ciò che l'app scrive nel volume `waveset_fullstack_mysql_data`. I risultati di future ricerche Apple live saranno invece dati **esterni** e temporanei, distinti dal catalogo locale.
+Il database persistente dell'ambiente normale è ciò che l'app scrive nel volume `waveset_fullstack_mysql_data`. I risultati di ricerca Deezer/Apple Music sono dati **esterni** e temporanei; solo un profilo confermato dall’ADMIN viene persistito in `artista_provider_link`, separato dai dati locali curati.
 
 ## Account e sicurezza
 
@@ -334,9 +334,9 @@ Panoramica **non esaustiva** delle famiglie di route (dettaglio in `backend/src/
 | Follow | `PUT /artisti/:id/segui`, `DELETE /artisti/:id/segui` | solo USER; idempotenti, successo 204; stato `seguito` nel dettaglio artista |
 | Playlist | `/playlist` | autenticato, per utente |
 | Deezer | `/deezer/scopri` | autenticato |
-| ADMIN | `/admin/eventi` (coda di revisione), `/admin/spotify/anteprima`, `/admin/deezer/anteprima` | ADMIN |
+| ADMIN | `/admin/eventi` (registro Ollama), `/admin/spotify/anteprima`, `/admin/deezer/anteprima` | ADMIN |
 
-Non esistono ancora le route di ricerca Apple live né revisione AI. La sincronizzazione Ticketmaster usa un job backend, senza endpoint pubblico che avvii importazioni. Registrazione e sessione browser sono verificate nello stack di test; il login web usa `/api/auth/web/login`, mentre il contratto bearer resta separato.
+Sono disponibili le route ADMIN Apple Music descritte in [docs/apple-music.md](docs/apple-music.md); la revisione AI resta futura. La sincronizzazione Ticketmaster usa un job backend, senza endpoint pubblico che avvii importazioni. Registrazione e sessione browser sono verificate nello stack di test; il login web usa `/api/auth/web/login`, mentre il contratto bearer resta separato.
 
 ### Registrazione di un nuovo utente
 
@@ -460,7 +460,7 @@ Descrizione basata sulla lettura di `backend/src/servizi/deezer.js` e delle due 
 
 ## Sincronizzazione Ticketmaster
 
-Il job interroga la [Discovery API ufficiale](https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/) soltanto per artisti già nella tabella `artista`. Un `id_ticketmaster` confermato dall'ADMIN viene riutilizzato senza ricerca per nome. Altrimenti una corrispondenza di nome esatto e non ambiguo crea un candidato **in coda**: non conferma automaticamente l'identità. Risultati esterni Apple, nuovi artisti e chiamate AI non entrano in questo flusso.
+Il job interroga la [Discovery API ufficiale](https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/) soltanto per artisti già nella tabella `artista`. Un `id_ticketmaster` confermato dall'ADMIN viene riutilizzato senza ricerca per nome. Altrimenti una corrispondenza di nome esatto e non ambiguo crea un evento **da_valutare**. Tutti i Ticketmaster, anche con attraction confermata, passano al worker Ollama separato prima di diventare pubblici. Nessun nuovo artista o dato Apple live viene importato automaticamente.
 
 Compose avvia `ticketmaster-schema` prima del backend/worker e `ticketmaster-sync` come servizio autonomo con riavvio automatico. Lo schema `backend/db/init/13_ticketmaster_sync_schema.sql` aggiunge soltanto tre tabelle: snapshot della fonte, progressi per artista e stato globale. I volumi nuovi lo ricevono dall'inizializzazione MySQL; sui volumi esistenti il servizio applica lo stesso DDL idempotente. **Prima del primo avvio su un DB già in uso: backup, lettura del DDL e conferma dell'operatore.** Non rimuovere volumi, non rieseguire seed normali e non applicare il Compose normale per provare il DB test.
 
@@ -499,7 +499,7 @@ Il worker controlla le scadenze ogni minuto e al suo avvio; non interroga Ticket
 
 CLI, worker e repliche prendono il medesimo `GET_LOCK(<database>:ticketmaster-sync,0)` sulla connessione usata per le scritture. Un secondo esecutore restituisce `occupato`. Il lock viene rilasciato anche su errore/disconnessione; timer sequenziali evitano sovrapposizioni nello stesso processo. I log riportano soltanto codici controllati e contatori, mai URL con `apikey`, corpi remoti grezzi o valori env.
 
-La chiave unica `(fonte,id_esterno)` impedisce duplicati; inserimento evento/lineup/snapshot è transazionale. Date/orari locali vengono conservati, coordinate normalizzate senza geocodifica esterna. I campi della fonte restano nel suo snapshot. Campi pubblicati vengono aggiornati soltanto per eventi creati dal nuovo job e ancora identici all'ultima versione applicata, con lineup invariata. PATCH/approvazione/scarto ADMIN proteggono la riga atomicamente; modifiche SQL o collegamenti diversi vengono rilevati. Import legacy senza snapshot sono protetti per prudenza. Il job non riscrive `artista.id_ticketmaster`, lineup confermata, approvazioni o scarti. Nuove identità candidate, coordinate mancanti, date incerte e possibili doppioni entrano in coda; non vengono promossi ai cicli successivi. Nuovi eventi senza una data locale valida non vengono inseriti: lo schema richiede una data e il job non ne inventa una. Per eventi esistenti conserva i campi curati e registra lo snapshot incompleto.
+La chiave unica `(fonte,id_esterno)` impedisce duplicati; inserimento evento/lineup/snapshot è transazionale. Date/orari locali e immagini sono normalizzati; la fonte rimane nello snapshot separato. La sync aggiorna soltanto campi non curati e non modifica identità/lineup confermate. Nuovi eventi sono `da_valutare`: il worker Ollama applica le decisioni con audit, senza bloccare la sync. Modifiche sostanziali della fonte richiedono nuova validazione. Eventi senza data valida non vengono inventati né inseriti. Correzioni e vecchi dati ADMIN restano conservati; pubblicazione Ticketmaster richiede ora approvazione automatica. Le azioni manuali nel registro restituiscono 410.
 
 Uno stato fonte `canceled` nasconde l'evento dalle query pubbliche, mantenendo la decisione ADMIN e la riga per revisione. `postponed` e `rescheduled` vengono segnalati in UI. Un evento non più nei risultati viene verificato con la route di dettaglio: soltanto un 404 registra `assente_dal`, senza cancellarlo o inventare un annullamento. Una ricerca incompleta o errore non segnala assenze. Errori della fonte conservano tutti i dati persistiti.
 
@@ -586,7 +586,7 @@ Cose **non verificate** o con difetti noti:
 
 ## Funzionalità future e riferimenti
 
-Funzionalità previste (vedi [Da implementare](#da-implementare)): ricerca Apple live e promozione controllata nel catalogo, tendenze Apple, revisione ADMIN assistita da Ollama locale. Lo scheduler Ticketmaster e Google Maps con quattro layer sono implementati.
+Funzionalità previste (vedi [Da implementare](#da-implementare)): importazione di nuovi artisti, tendenze Apple. La validazione automatica Ollama è implementata. Ricerca Apple Music Catalog e collegamento degli artisti locali sono implementati. Lo scheduler Ticketmaster e Google Maps con quattro layer sono implementati.
 
 Riferimenti da consultare. La documentazione Discovery API è stata consultata per paginazione, stati e limiti. Gli altri indirizzi restano da verificare; consultare le condizioni e i limiti del proprio account prima dell'uso.
 
@@ -597,6 +597,36 @@ Riferimenti da consultare. La documentazione Discovery API è stata consultata p
 | iTunes Search API | https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/ | da verificare |
 | Ticketmaster Discovery API | https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/ | consultata per questo incremento |
 | Google Maps JavaScript API | https://developers.google.com/maps/documentation/javascript | da verificare |
-| Ollama | https://ollama.com/ | da verificare |
+| Ollama | https://docs.ollama.com/capabilities/structured-outputs | Structured Outputs verificati con qwen3:4b locale |
 | Node.js: `--env-file` e test runner | https://nodejs.org/api/test.html | da verificare |
 | API pubblica Deezer (usata dal codice ereditato) | https://developers.deezer.com/api | da verificare |
+
+## Integrazione Apple Music Catalog
+
+La gestione ADMIN degli artisti è disponibile in `/admin/artisti` e `/admin/artisti/:id`. Il backend firma e conserva in memoria il Developer Token ES256; ricerca, conferma e risincronizzazione passano esclusivamente dal server. Migrazione additiva `14_apple_music_provider_schema.sql`, servizio Compose `apple-music-schema`, comando `npm run artisti:apple-schema`. Nessun Music User Token o MusicKit browser.
+
+Configurazione richiesta al primo uso: `APPLE_MUSIC_TEAM_ID`, `APPLE_MUSIC_KEY_ID`, `APPLE_MUSIC_PRIVATE_KEY`, `APPLE_MUSIC_STOREFRONT`; opzionali `APPLE_MUSIC_TOKEN_TTL` e `APPLE_MUSIC_TIMEOUT_MS`. Queste variabili sono solo backend. Per chiave, migrazione, contratti HTTP, strategia di sostituzione e test consultare [la guida Apple Music](docs/apple-music.md).
+
+Flusso fonti: **Deezer = artisti (default); Apple Music = alternativa opzionale; Ticketmaster = eventi; Ollama = validazione automatica**. Non vengono sovrascritti catalogo locale o conferme ADMIN Ticketmaster. La sincronizzazione Apple è manuale in questa iterazione.
+
+## Provider artisti Deezer e presenza Ticketmaster
+
+`ARTISTI_PROVIDER=deezer` è il default backend, senza chiave/OAuth; `apple_music` seleziona l’alternativa Apple già integrata. Le pagine ADMIN artisti usano il provider scelto e permettono ricerca, conferma esplicita e sync. Ogni conferma controlla la presenza di attraction con nome esatto su Ticketmaster, senza bloccare il collegamento in caso di errore e senza modificare attraction già confermate. Il pulsante **Ricontrolla Ticketmaster** ripete il controllo. Presenza di attraction ed eventi disponibili sono informazioni diverse, come precisato nel pannello.
+
+Migrazione additiva `15_artista_ticketmaster_presenza_schema.sql`; `npm run artisti:provider-schema` e il job Compose `apple-music-schema` applicano le tabelle 14/15 idempotentemente. Profili Apple preservati; immagini del provider attivo disponibili ai marker esistenti. Procedura di backup, endpoint, timeout/cache/limite, prova reale e limiti nella [guida provider artisti](docs/provider-artisti.md). Prima del lancio pubblico leggere le [condizioni d’uso Deezer](https://developers.deezer.com/termsofuse), soprattutto per fotografie e uso commerciale.
+
+## Ritratti artista e copertine evento
+
+Il hero artista mostra la foto del provider attivo accanto al nome. Le copertine degli eventi sono scelte esclusivamente dall'array `images` dell'evento Ticketmaster, salvate nello snapshot della fonte e disponibili come `immagine_url` e `immagine` nelle API pubbliche. La lista usa card16:9; nel dettaglio la copertina riempie il pannello destro del hero verde (sotto le informazioni su mobile), con segnaposto evento dedicato; lineup e marker mantengono le foto artista. Regola di selezione, compatibilità e backfill limitato/idempotente: [guida immagini eventi](docs/immagini-eventi.md).
+
+## Validazione automatica eventi con Ollama
+
+Deezer = artisti predefinito; Apple Music = alternativa; Ticketmaster = eventi; Ollama = validazione automatica. `qwen3:4b` è il modello locale consigliato per sviluppo. `OLLAMA_MODEL` è configurabile: hardware più potente può usare modelli più grandi purché rispettino lo stesso JSON richiesto. Configurare URL backend Docker macOS `http://host.docker.internal:11434` (Mac nativo `http://localhost:11434`), timeout 45000 ms, soglia 0.85 e massimo 3 tentativi. Nessun accesso frontend a Ollama.
+
+```sh
+ollama pull qwen3:4b
+ollama list
+curl http://localhost:11434/api/tags
+```
+
+Worker automatico `ollama-eventi`, comando manuale `npm run eventi:valida` e check `npm run ollama:check` da backend con ambiente caricato. Migrazione 16 richiede backup: conserva dati/snapshot, mette i Ticketmaster esistenti in valutazione e crea job/audit. `/admin/eventi` diventa registro consultabile; solo “Rivaluta con Ollama” rimette in attesa, senza bypassare le regole. Esplora mostra una sezione eventi alimentata dalla stessa API pubblica della mappa. [Istruzioni complete di setup, migrazione, run, retry, audit e limiti](docs/ollama-eventi.md).
