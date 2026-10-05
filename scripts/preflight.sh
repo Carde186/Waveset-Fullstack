@@ -8,12 +8,12 @@ case "${1:-}" in
     test)
         progetto=waveset-test
         volume=waveset_test_mysql_data
-        porte=("${BACKEND_HOST_PORT:-3001}" "${MYSQL_HOST_PORT:-3308}" "${FRONTEND_HOST_PORT:-5174}")
+        porte=("${BACKEND_HOST_PORT:-3001}" "${MYSQL_HOST_PORT:-3308}" "${FRONTEND_HOST_PORT:-5175}")
         ;;
     normale)
         progetto=waveset-fullstack
         volume=waveset_fullstack_mysql_data
-        porte=("${BACKEND_HOST_PORT:-3002}" "${MYSQL_HOST_PORT:-3307}")
+        porte=("${BACKEND_HOST_PORT:-3002}" "${MYSQL_HOST_PORT:-3307}" "${FRONTEND_HOST_PORT:-5174}")
         ;;
     *) echo "uso: $0 test|normale" >&2; exit 2 ;;
 esac
