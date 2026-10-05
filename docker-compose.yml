@@ -82,18 +82,12 @@ services:
             RATE_LIMIT_LOGIN_FINESTRA_SEC: ${RATE_LIMIT_LOGIN_FINESTRA_SEC:-900}
             ARTISTI_PROVIDER: ${ARTISTI_PROVIDER:-deezer}
             DEEZER_TIMEOUT_MS: ${DEEZER_TIMEOUT_MS:-8000}
-            APPLE_MUSIC_TEAM_ID: ${APPLE_MUSIC_TEAM_ID:-}
-            APPLE_MUSIC_KEY_ID: ${APPLE_MUSIC_KEY_ID:-}
-            APPLE_MUSIC_PRIVATE_KEY: ${APPLE_MUSIC_PRIVATE_KEY:-}
-            APPLE_MUSIC_STOREFRONT: ${APPLE_MUSIC_STOREFRONT:-}
-            APPLE_MUSIC_TOKEN_TTL: ${APPLE_MUSIC_TOKEN_TTL:-3600}
-            APPLE_MUSIC_TIMEOUT_MS: ${APPLE_MUSIC_TIMEOUT_MS:-10000}
         depends_on:
             ollama-schema:
                 condition: service_completed_successfully
             mysql:
                 condition: service_healthy
-            apple-music-schema:
+            artisti-provider-schema:
                 condition: service_completed_successfully
             ticketmaster-schema:
                 condition: service_completed_successfully
@@ -118,9 +112,9 @@ services:
             - backend
         restart: unless-stopped
 
-    apple-music-schema:
+    artisti-provider-schema:
         build: ./backend
-        command: ["node", "scripts/preparaAppleMusic.js", "--applica"]
+        command: ["node", "scripts/preparaProviderArtisti.js", "--applica"]
         environment:
             DB_HOST: mysql
             DB_PORT: "3306"
@@ -187,7 +181,7 @@ services:
                 condition: service_healthy
             ticketmaster-schema:
                 condition: service_completed_successfully
-            apple-music-schema:
+            artisti-provider-schema:
                 condition: service_completed_successfully
         restart: "no"
 

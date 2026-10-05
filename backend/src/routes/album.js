@@ -1,6 +1,5 @@
 const express = require('express');
 
-const { ottieniCopertina } = require('../itunes/copertina');
 const pool = require('../config/database');
 const { immaginiArtisti } = require('../artistiProvider/immagini');
 const { trovaLinkAlbumSpotify } = require('../spotify/linkAlbum');
@@ -49,31 +48,11 @@ async function dettaglioAlbum(req, res) {
     });
 }
 
-// Copertina live da iTunes per i (soli) album reali con una mappatura
-// verificata (vedi src/itunes/copertina.js) — mai scritta nel database, mai
-// un proxy generico: il client passa solo un id album locale già
-// esistente, l'id Apple da interrogare lo decide sempre e solo questa
-// mappatura lato server. 404 per qualunque motivo (nessuna mappatura,
-// match non più valido) o 502 (iTunes irraggiungibile): il frontend deve
-// trattarli allo stesso modo, restando sul fallback esistente.
-async function copertinaItunes(req, res) {
-    const { id } = req.params;
-    const risultato = await ottieniCopertina(id);
-
-    if (!risultato.ok) {
-        res.status(risultato.stato).json({ messaggio: risultato.motivo });
-        return;
-    }
-
-    res.json(risultato.dati);
-}
-
 // Link Spotify ALL'ALBUM (mai un link di un brano) per i (soli) album
 // reali con una mappatura verificata (vedi src/spotify/linkAlbum.js) —
 // mappatura statica, nessuna chiamata Spotify: non c'è nulla da
-// "ritrovare", solo da restituire. Stesso principio di scoping di
-// copertinaItunes sopra: il client passa solo un id album locale già
-// esistente.
+// "ritrovare", solo da restituire. Il client passa soltanto un id
+// album locale già esistente.
 async function linkSpotify(req, res) {
     const { id } = req.params;
     const link = await trovaLinkAlbumSpotify(id);
@@ -89,7 +68,6 @@ async function linkSpotify(req, res) {
 }
 
 router.get('/album/:id', dettaglioAlbum);
-router.get('/album/:id/copertina-itunes', copertinaItunes);
 router.get('/album/:id/link-spotify', linkSpotify);
 
 module.exports = router;

@@ -1,11 +1,12 @@
-const { ErroreAppleMusic: ErroreProvider } = require('../appleMusic/errore');
-const { pubblico } = require('../appleMusic/client');
+const { ErroreProvider } = require('./errore');
+const { pubblico } = require('./profilo');
 const { creaRepository, nonVerificato } = require('./repository');
 const { creaControllo } = require('./presenzaTicketmaster');
-function creaService({ provider, repository = creaRepository(require('../config/database'), provider),
-    client = provider === 'deezer' ? require('../deezer/client').creaClient() : require('../appleMusic/client').creaClient(),
+function creaService({ provider = 'deezer', repository = creaRepository(require('../config/database'), provider),
+    client = require('../deezer/client').creaClient(),
     controllaTicketmaster = creaControllo() } = {}) {
-    const prefisso = provider === 'deezer' ? 'DEEZER' : 'APPLE';
+    if (provider !== 'deezer') throw new ErroreProvider('PROVIDER_CONFIGURAZIONE', 503);
+    const prefisso = 'DEEZER';
     const versione = v => {
         if (v !== null && (!Number.isInteger(v) || v < 1 || v > 4294967294)) throw new ErroreProvider(`${prefisso}_PARAMETRI`, 400);
         return v;

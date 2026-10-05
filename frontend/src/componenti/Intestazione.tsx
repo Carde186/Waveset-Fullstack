@@ -34,7 +34,7 @@ export function Intestazione() {
                 ) : null}
                 {stato.tipo === 'autenticato' && stato.utente.ruolo === 'USER' ? <NavLink to="/impostazioni" className={classeVoce}>{t('account.title')}</NavLink> : null}
                 {stato.tipo === 'autenticato' && stato.utente.ruolo === 'ADMIN' ? <NavLink to="/admin/eventi" className={classeVoce}>{t('adminEvents.nav')}</NavLink> : null}
-                {stato.tipo === 'autenticato' && stato.utente.ruolo === 'ADMIN' ? <NavLink to="/admin/artisti" className={classeVoce}>{t('apple.nav')}</NavLink> : null}
+                {stato.tipo === 'autenticato' && stato.utente.ruolo === 'ADMIN' ? <NavLink to="/admin/artisti" className={classeVoce}>{t('provider.nav')}</NavLink> : null}
                 {stato.tipo === 'anonimo' ? (
                     <>
                         <NavLink to="/registrati" className={classeVoce}>

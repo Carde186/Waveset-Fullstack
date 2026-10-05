@@ -19,7 +19,7 @@ test('Discografia: artwork ufficiale della pubblicazione, mai foto artista; link
 });
 test('Discografia: top 10, singoli/EP, ordine recente, paginazione ricostruita e cache condivisa', async () => {
     const chiamate = [];
-    const c = creaClient({ env: {}, fetchImpl: async url => {
+    const c = creaClient({ env: {}, ora: () => 0, fetchImpl: async url => {
         chiamate.push(url);
         const u = new URL(url);
         if (u.pathname.endsWith('/top')) { assert.equal(u.searchParams.get('limit'), '10'); return Response.json({ data: [track], total: 40 }); }

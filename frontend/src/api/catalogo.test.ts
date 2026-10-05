@@ -8,7 +8,6 @@ import {
     leggiAlbum,
     leggiArtista,
     leggiBrano,
-    leggiLinkApple,
     leggiLinkSpotify,
 } from './catalogo';
 import { ErroreApi, impostaCsrf } from './client';
@@ -206,19 +205,19 @@ test('404, rete e 500 del dettaglio restano distinguibili', async () => {
 
 test('link statici: mapping 404 assente, URL specifico valido, guasto non trattato come assenza', async () => {
     simulaBackend({
-        'GET /api/brani/11/link-apple': json(200, {
-            link_traccia: 'https://music.apple.com/it/album/esempio/1?i=2',
+        'GET /api/album/11/link-spotify': json(200, {
+            link_store: 'https://open.spotify.com/album/esempio',
         }),
         'GET /api/album/21/link-spotify': json(404, { messaggio: 'Assente' }),
     });
-    expect(await leggiLinkApple(11)).toContain('?i=2');
+    expect(await leggiLinkSpotify(11)).toContain('/album/esempio');
     expect(await leggiLinkSpotify(21)).toBeNull();
     simulaBackend({ 'GET /api/album/21/link-spotify': json(500, {}) });
     await expect(leggiLinkSpotify(21)).rejects.toMatchObject({ stato: 500 });
     simulaBackend({
-        'GET /api/brani/11/link-apple': json(200, { link_traccia: 'https://example.org/falso' }),
+        'GET /api/album/11/link-spotify': json(200, { link_store: 'https://example.org/falso' }),
     });
-    await expect(leggiLinkApple(11)).rejects.toMatchObject({ stato: 200 });
+    await expect(leggiLinkSpotify(11)).rejects.toMatchObject({ stato: 200 });
 });
 
 

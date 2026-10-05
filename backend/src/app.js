@@ -132,7 +132,7 @@ function creaApp(opzioni = {}) {
         routeAdminEventi,
     );
     app.use('/api/admin/artisti', richiediAutenticazione, richiediRuolo('ADMIN'),
-        creaRouteAdminArtisti(opzioni.appleMusicService, opzioni.artistiProvider));
+        creaRouteAdminArtisti(opzioni.artistiProvider));
     // Anteprima Spotify di sola lettura (demo, non il seed del catalogo):
     // stesso doppio requisito autenticazione+ruolo, mai solo il controllo
     // lato app.

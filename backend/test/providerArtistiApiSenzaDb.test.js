@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const { before, beforeEach, after, test } = require('node:test');
 const { hashToken } = require('../src/autenticazione/token');
 const { generaCsrf } = require('../src/autenticazione/csrf');
-const { ErroreAppleMusic } = require('../src/appleMusic/errore');
+const { ErroreProvider } = require('../src/artistiProvider/errore');
 const device = '12345678-1234-4234-8234-123456789abc', token = 'e'.repeat(64);
 const env = {};
 let ruolo = 'ADMIN', server, base, chiamate, guasto, guastoLista, queryLista;
@@ -19,14 +19,14 @@ const db = { async query(sql, parametri) {
 const dbPath = require.resolve('../src/config/database');
 require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: db };
 const creaApp = require('../src/app');
-const profilo = { externalId: '123', name: 'Apple', storefront: 'it', url: 'https://music.apple.com/it/artist/test/123', artwork: null, genres: [], syncedAt: '2026-10-03T10:00:00Z', versione: 1 };
+const profilo = { externalId: '123', name: 'Deezer', provider: 'deezer', fan: null, storefront: '', url: 'https://www.deezer.com/artist/123', artwork: null, genres: [], syncedAt: '2026-10-03T10:00:00Z', versione: 1 };
 const service = Object.fromEntries(['leggi', 'cerca', 'collega', 'sincronizza', 'ricontrolla'].map(azione => [azione, async (...args) => {
     chiamate.push([azione, ...args]); if (guasto) throw guasto;
     return azione === 'leggi' ? { artista: { id: args[0], nome: 'Locale' }, collegamento: profilo } : azione === 'cerca' ? { risultati: [profilo] } : profilo;
 }]));
 const limite = { prenota: () => ({ consentito: true }) };
 before(async () => {
-    const app = creaApp({ artistiProvider: { services: { deezer: service, apple_music: { ...service, async leggi(...args) { return { ...await service.leggi(...args), provider: 'apple_music' }; } } }, env }, configurazioneWeb: { abilitata: true, origini: new Set(['http://localhost:5174']) }, limitatoreAccount: limite, limitatoreRegistrazione: limite });
+    const app = creaApp({ artistiProvider: { services: { deezer: service }, env }, configurazioneWeb: { abilitata: true, origini: new Set(['http://localhost:5174']) }, limitatoreAccount: limite, limitatoreRegistrazione: limite });
     server = await new Promise((resolve, reject) => { const s = app.listen(0, '127.0.0.1', e => e ? reject(e) : resolve(s)); });
     base = `http://127.0.0.1:${server.address().port}/api/admin/artisti`;
 });
@@ -35,10 +35,10 @@ after(async () => { if (server) await new Promise(r => server.close(r)); });
 async function chiama(path, method = 'GET', body, headers = {}) {
     const r = await fetch(base + path, { method, headers: { Cookie: `waveset_sid=${device}.${token}`, Origin: 'http://localhost:5174',
         'X-CSRF-Token': generaCsrf(token), 'Content-Type': 'application/json', ...headers }, body: body === undefined ? undefined : JSON.stringify(body) });
-    return { status: r.status, dati: await r.json(), headers: r.headers };
+    return { status: r.status, dati: await r.json().catch(() => null), headers: r.headers };
 }
 test('lista ADMIN: 37 artisti, anche senza provider; LEFT JOIN sul provider attivo e no-store', async () => {
-    for (const provider of ['deezer', 'apple_music']) {
+    for (const provider of ['deezer']) {
         env.ARTISTI_PROVIDER = provider;
         const r = await chiama('');
         assert.equal(r.status, 200); assert.equal(r.headers.get('cache-control'), 'no-store');
@@ -84,10 +84,10 @@ test('ID invalidi fermati prima del service', async () => {
     for (const id of ['0', 'abc', '-1', '01', '1.1', '2147483648']) assert.equal((await chiama(`/${id}/deezer`)).status, 400);
     assert.equal(chiamate.length, 0);
 });
-test('codici configurazione/notfound/conflitti/Apple chiari; errore interno non esposto o loggato', async t => {
+test('codici configurazione/notfound/conflitti/Deezer chiari; errore interno non esposto o loggato', async t => {
     const log = []; t.mock.method(console, 'error', (...args) => log.push(args));
-    for (const [codice, status] of [['DEEZER_CONFIGURAZIONE', 503], ['DEEZER_NON_TROVATO', 404], ['DEEZER_GIA_COLLEGATO', 409], ['DEEZER_CONFLITTO', 409], ['DEEZER_TIMEOUT', 503], ['DEEZER_LIMITE', 503], ['APPLE_CONFIGURAZIONE', 503], ['ARTISTA_NON_TROVATO', 404], ['APPLE_NON_TROVATO', 404], ['APPLE_GIA_COLLEGATO', 409], ['APPLE_CONFLITTO', 409], ['APPLE_TIMEOUT', 503], ['APPLE_AUTORIZZAZIONE', 502]]) {
-        guasto = new ErroreAppleMusic(codice, status);
+    for (const [codice, status] of [['DEEZER_CONFIGURAZIONE', 503], ['DEEZER_NON_TROVATO', 404], ['DEEZER_GIA_COLLEGATO', 409], ['DEEZER_CONFLITTO', 409], ['DEEZER_TIMEOUT', 503], ['DEEZER_LIMITE', 503], ['ARTISTA_NON_TROVATO', 404]]) {
+        guasto = new ErroreProvider(codice, status);
         const r = await chiama('/1/deezer'); assert.equal(r.status, status); assert.equal(r.dati.codice, codice);
     }
     guasto = new Error('PEM Authorization SECRET interno');
@@ -95,13 +95,19 @@ test('codici configurazione/notfound/conflitti/Apple chiari; errore interno non 
     assert.equal(r.dati.codice, 'DEEZER_SERVER'); assert(!JSON.stringify(r).includes('SECRET')); assert.equal(log.length, 0);
 });
 
-test('Provider attivo e profilo: Deezer default, Apple selezionabile, config invalida esplicita', async () => {
+test('Provider attivo: soltanto Deezer; endpoint Apple rimossi senza chiamate al service', async () => {
     assert.equal((await chiama('/provider')).dati.provider, 'deezer');
     assert.equal((await chiama('/1/provider')).status, 200);
-    env.ARTISTI_PROVIDER = 'apple_music'; assert.equal((await chiama('/provider')).dati.provider, 'apple_music');
-    assert.equal((await chiama('/1/apple-music')).status, 200);
-    assert.equal((await chiama('/1/provider')).dati.provider, 'apple_music');
-    env.ARTISTI_PROVIDER = 'spotify'; assert.equal((await chiama('/provider')).status, 503);
+    chiamate = [];
+    for (const [path, method] of [['/1/apple-music', 'GET'], ['/1/apple-music/search?q=test', 'GET'],
+        ['/1/apple-music/collegamento', 'POST'], ['/1/apple-music/sincronizza', 'POST']]) {
+        assert.equal((await chiama(path, method, method === 'POST' ? {} : undefined)).status, 404);
+    }
+    assert.equal(chiamate.length, 0);
+    for (const provider of ['apple_music', 'spotify']) {
+        env.ARTISTI_PROVIDER = provider;
+        assert.equal((await chiama('/provider')).status, 503);
+    }
 });
 test('ADMIN: ricontrollo Ticketmaster e protezioni sessione/ruolo/CSRF', async () => {
     assert.equal((await chiama('/1/deezer/ticketmaster', 'POST', { versione_attesa: 1 })).status, 200);

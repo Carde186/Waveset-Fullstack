@@ -1,6 +1,6 @@
 import { ErroreApi, richiesta } from './client';
 
-export type Provider = 'deezer' | 'apple_music';
+export type Provider = 'deezer';
 export interface PresenzaTicketmaster {
     stato: 'trovato' | 'non_trovato' | 'non_verificato';
     attractions: { id: string; name: string }[];
@@ -19,7 +19,7 @@ export interface GestioneArtistaProvider {
 export interface ArtistaGestione {
     id: number; nome: string; providerCollegato: Provider | null;
 }
-export const nomeProvider = (p: Provider) => p === 'deezer' ? 'Deezer' : 'Apple Music';
+export const nomeProvider = (p: Provider) => ({ deezer: 'Deezer' })[p];
 function oggetto(v: unknown): Record<string, unknown> {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw new ErroreApi(200);
     return v as Record<string, unknown>;
@@ -29,7 +29,7 @@ function testo(v: unknown): string {
     return v;
 }
 function provider(v: unknown): Provider {
-    if (v !== 'deezer' && v !== 'apple_music') throw new ErroreApi(200);
+    if (v !== 'deezer') throw new ErroreApi(200);
     return v;
 }
 function url(v: unknown, domini: string[]): string {
@@ -42,12 +42,12 @@ function url(v: unknown, domini: string[]): string {
 function profilo(v: unknown): ProfiloProvider {
     const r = oggetto(v), p = provider(r.provider), externalId = testo(r.externalId), syncedAt = testo(r.syncedAt);
     if (!/^[1-9]\d{0,29}$/.test(externalId) || typeof r.storefront !== 'string' ||
-        (p === 'deezer' ? r.storefront !== '' : !/^[a-z]{2}$/.test(r.storefront)) ||
+        r.storefront !== '' ||
         !Number.isFinite(Date.parse(syncedAt)) || !Array.isArray(r.genres) || r.genres.some(g => typeof g !== 'string') ||
         (r.fan !== null && (!Number.isSafeInteger(r.fan) || Number(r.fan) < 0))) throw new ErroreApi(200);
     const a = r.artwork === null ? null : oggetto(r.artwork);
-    return { provider: p, externalId, name: testo(r.name), url: url(r.url, p === 'deezer' ? ['deezer.com'] : ['music.apple.com']),
-        fan: r.fan as number | null, artwork: a ? { url: url(a.url, p === 'deezer' ? ['dzcdn.net', 'deezer.com'] : ['mzstatic.com']),
+    return { provider: p, externalId, name: testo(r.name), url: url(r.url, ['deezer.com']),
+        fan: r.fan as number | null, artwork: a ? { url: url(a.url, ['dzcdn.net', 'deezer.com']),
             width: typeof a.width === 'number' ? a.width : null, height: typeof a.height === 'number' ? a.height : null } : null,
         genres: r.genres as string[], storefront: r.storefront, syncedAt };
 }
@@ -63,7 +63,7 @@ function collegamento(v: unknown): LinkProvider {
 }
 function percorso(id: number, p?: Provider): string {
     if (!Number.isInteger(id) || id <= 0 || id > 2147483647) throw new ErroreApi(400);
-    return `/admin/artisti/${id}/${p ? (p === 'deezer' ? 'deezer' : 'apple-music') : 'provider'}`;
+    return `/admin/artisti/${id}/${p ? 'deezer' : 'provider'}`;
 }
 export async function leggiProvider(): Promise<Provider> {
     return provider(oggetto(await richiesta('/admin/artisti/provider')).provider);

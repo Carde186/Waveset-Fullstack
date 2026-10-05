@@ -1,4 +1,4 @@
-const { ErroreAppleMusic: ErroreProvider } = require('../appleMusic/errore');
+const { ErroreProvider } = require('../artistiProvider/errore');
 const { urlSicuro } = require('./client');
 function identita(v, tipo) {
     if (!v || v.type !== tipo || !Number.isSafeInteger(v.id) || v.id <= 0 || typeof v.title !== 'string' || !v.title.trim()) throw new ErroreProvider('DEEZER_DATI_INVALIDI');

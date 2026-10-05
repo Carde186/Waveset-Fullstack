@@ -13,15 +13,10 @@ import { t, locale, type Chiave } from '../localizzazione/lingua';
 import stile from './AdminArtisti.module.css';
 
 const ERRORI: Record<string, Chiave> = {
-    APPLE_CONFIGURAZIONE: 'apple.error.config', APPLE_NON_TROVATO: 'apple.error.missing',
-    ARTISTA_NON_TROVATO: 'apple.error.artistMissing', APPLE_LINK_ASSENTE: 'apple.error.noLink',
-    APPLE_CONFLITTO: 'apple.error.conflict', APPLE_GIA_COLLEGATO: 'apple.error.duplicate',
-    APPLE_AUTORIZZAZIONE: 'apple.error.authorization', APPLE_LIMITE: 'apple.error.limit',
-    APPLE_TIMEOUT: 'apple.error.timeout', APPLE_DATI_INVALIDI: 'apple.error.payload',
-    APPLE_PARAMETRI: 'common.invalidData',
+    ARTISTA_NON_TROVATO: 'provider.error.artistMissing',
     PROVIDER_CONFIGURAZIONE: 'provider.error.config', DEEZER_CONFIGURAZIONE: 'provider.error.config',
     DEEZER_NON_TROVATO: 'provider.error.missing', DEEZER_LINK_ASSENTE: 'provider.error.noLink',
-    DEEZER_CONFLITTO: 'apple.error.conflict', DEEZER_GIA_COLLEGATO: 'provider.error.duplicate',
+    DEEZER_CONFLITTO: 'provider.error.conflict', DEEZER_GIA_COLLEGATO: 'provider.error.duplicate',
     DEEZER_LIMITE: 'provider.error.limit', DEEZER_TIMEOUT: 'provider.error.timeout', DEEZER_PARAMETRI: 'common.invalidData',
     DEEZER_DATI_INVALIDI: 'provider.error.payload',
 };
@@ -30,7 +25,7 @@ function errore(causa: unknown): string {
         if (causa.stato === 401) return t('adminEvents.expired');
         if (causa.stato === 403) return t('adminEvents.denied');
         if (causa.codice && ERRORI[causa.codice]) return t(ERRORI[causa.codice]!);
-        if (causa.stato === 404) return t('apple.error.artistMissing');
+        if (causa.stato === 404) return t('provider.error.artistMissing');
     }
     return t('provider.error.server');
 }

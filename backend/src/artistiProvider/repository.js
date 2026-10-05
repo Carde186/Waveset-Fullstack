@@ -1,5 +1,5 @@
-const { creaRepository: base } = require('../appleMusic/repository');
-const { ErroreAppleMusic: ErroreProvider } = require('../appleMusic/errore');
+const { creaRepository: base } = require('./repositoryProfilo');
+const { ErroreProvider } = require('./errore');
 const nonVerificato = () => ({ stato: 'non_verificato', attractions: [], ambiguo: false, controllatoAt: null });
 function creaRepository(pool, provider) {
     const repository = base(pool, provider, async (c, corrente, dati) => {
@@ -7,7 +7,7 @@ function creaRepository(pool, provider) {
             await c.query('DELETE FROM artista_ticketmaster_presenza WHERE link_id=?', [corrente.id]);
         }
     });
-    const prefisso = provider === 'deezer' ? 'DEEZER' : 'APPLE';
+    const prefisso = 'DEEZER';
     return {
         ...repository,
         async leggiPresenza(id, link) {

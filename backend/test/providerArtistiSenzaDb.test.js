@@ -4,11 +4,16 @@ const { creaControllo, normalizzaNome } = require('../src/artistiProvider/presen
 const { creaClientTicketmaster } = require('../src/servizi/ticketmaster');
 const { creaService } = require('../src/artistiProvider/service');
 const { providerAttivo } = require('../src/artistiProvider/configurazione');
-const { ErroreAppleMusic } = require('../src/appleMusic/errore');
-const { creaRepository: creaBase } = require('../src/appleMusic/repository');
-test('Provider: Deezer predefinito, Apple opzionale, nessun fallback su configurazione invalida', () => {
-    assert.equal(providerAttivo({}), 'deezer'); assert.equal(providerAttivo({ ARTISTI_PROVIDER: 'apple_music' }), 'apple_music');
-    assert.throws(() => providerAttivo({ ARTISTI_PROVIDER: 'spotify' }), e => e.codice === 'PROVIDER_CONFIGURAZIONE');
+const { ErroreProvider } = require('../src/artistiProvider/errore');
+const { creaRepository: creaBase } = require('../src/artistiProvider/repositoryProfilo');
+test('Provider: Deezer unico provider; configurazioni ritirate o sconosciute rifiutate', () => {
+    assert.equal(providerAttivo({}), 'deezer');
+    assert.equal(providerAttivo({ ARTISTI_PROVIDER: 'deezer' }), 'deezer');
+    for (const provider of ['apple_music', 'spotify']) {
+        assert.throws(() => providerAttivo({ ARTISTI_PROVIDER: provider }), e => e.codice === 'PROVIDER_CONFIGURAZIONE');
+        assert.throws(() => creaBase({}, provider), e => e.codice === 'PROVIDER_CONFIGURAZIONE');
+        assert.throws(() => creaService({ provider, repository: {}, client: {}, controllaTicketmaster: async () => {} }), e => e.codice === 'PROVIDER_CONFIGURAZIONE');
+    }
 });
 test('Ticketmaster: confronto esatto normalizzato, omonimi espliciti e deduplicazione ID', async () => {
     assert.equal(normalizzaNome('Chárlotte-de Witte!'), normalizzaNome('Charlotte de Witte'));
@@ -42,7 +47,7 @@ function memoria(controllaTicketmaster) {
     const repository = {
         async artista() { return { id: 1, nome: 'Locale', id_ticketmaster: 'curato' }; }, async leggi() { return link; },
         async salva(_id, dati, versione) {
-            if ((link?.versione ?? null) !== versione) throw new ErroreAppleMusic('DEEZER_CONFLITTO', 409);
+            if ((link?.versione ?? null) !== versione) throw new ErroreProvider('DEEZER_CONFLITTO', 409);
             const { raw, ...pubblico } = dati; link = { ...pubblico, versione: (link?.versione ?? 0) + 1 }; return link;
         }, async leggiPresenza() { return presenza; }, async salvaPresenza(_id, _link, e) { presenza = e; return e; },
     };

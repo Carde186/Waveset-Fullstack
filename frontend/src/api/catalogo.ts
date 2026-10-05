@@ -286,7 +286,5 @@ async function link(
         throw e;
     }
 }
-export const leggiLinkApple = (n: number) =>
-    link(n, `/brani/${n}/link-apple`, 'link_traccia', 'music.apple.com');
 export const leggiLinkSpotify = (n: number) =>
     link(n, `/album/${n}/link-spotify`, 'link_store', 'open.spotify.com');

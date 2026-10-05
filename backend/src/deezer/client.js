@@ -1,4 +1,4 @@
-const { ErroreAppleMusic: ErroreProvider } = require('../appleMusic/errore');
+const { ErroreProvider } = require('../artistiProvider/errore');
 const BASE = 'https://api.deezer.com';
 const oggetto = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 function urlSicuro(v, domini) {

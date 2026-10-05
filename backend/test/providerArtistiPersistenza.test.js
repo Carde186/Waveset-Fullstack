@@ -40,12 +40,11 @@ test('Provider: migrazione idempotente, profili distinti, unicità e controlli T
             assert.equal(letto.collegamento.storefront, ''); assert.equal(Object.hasOwn(letto.collegamento, 'raw'), false);
             const [[r]] = await pool.query('SELECT id_ticketmaster FROM artista WHERE id=?', [artisti[0]]); assert.equal(r.id_ticketmaster, `presenza-${tag}-0`);
         });
-        await t.test('profilo già occupato rifiutato, un solo link per artista/provider e Apple preservato', async () => {
+        await t.test('profilo già occupato rifiutato, un solo link per artista/provider e provider ritirato non utilizzabile', async () => {
             await assert.rejects(service.collega(artisti[1], { external_id: esterno, versione_attesa: null }), errore('DEEZER_GIA_COLLEGATO'));
             assert.equal(await repository.leggi(artisti[1]), null);
-            const apple = creaRepository(pool, 'apple_music');
-            await apple.salva(artisti[0], { ...await client.dettaglio(esterno), provider: 'apple_music', storefront: 'it', url: `https://music.apple.com/it/artist/test/${esterno}` }, null);
-            assert.equal((await repository.leggi(artisti[0])).externalId, esterno); assert.equal((await apple.leggi(artisti[0])).storefront, 'it');
+            assert.equal((await repository.leggi(artisti[0])).externalId, esterno);
+            assert.throws(() => creaRepository(pool, 'apple_music'), errore('PROVIDER_CONFIGURAZIONE'));
             await assert.rejects(pool.query("INSERT INTO artista_provider_link (artista_id,provider,external_id,storefront,url,dati_normalizzati_json,raw_json,sincronizzato_at) SELECT artista_id,provider,?,storefront,url,dati_normalizzati_json,raw_json,sincronizzato_at FROM artista_provider_link WHERE artista_id=? AND provider='deezer'", [`${esterno}9`, artisti[0]]), e => e.code === 'ER_DUP_ENTRY');
         });
         await t.test('sync conserva presenza; errore Ticketmaster non impedisce conferma e ricontrollo recupera', async () => {

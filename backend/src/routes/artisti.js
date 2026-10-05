@@ -5,9 +5,8 @@ const richiediAutenticazione = require('../autenticazione/richiediAutenticazione
 const richiediRuolo = require('../autenticazione/richiediRuolo');
 const pool = require('../config/database');
 const { SOLO_PUBBLICATI } = require('../utilita/eventi');
-const { creaRepository } = require('../appleMusic/repository');
-const provider = creaRepository(pool);
-const deezer = creaRepository(pool, 'deezer');
+const { creaRepository } = require('../artistiProvider/repositoryProfilo');
+const deezer = creaRepository(pool);
 const { biografia, popolaritaDeezer } = require('../catalogo/profiloPubblico');
 const { immaginiArtisti } = require('../artistiProvider/immagini');
 
@@ -132,14 +131,8 @@ async function dettaglioArtista(req, res) {
     }
 
     const [riga] = await immaginiArtisti(righeArtista);
-    let appleMusic = null;
     let popolarita = null;
     try {
-        const collegamento = await provider.leggi(id);
-        if (collegamento) {
-            const { versione, ...datiPubblici } = collegamento;
-            appleMusic = datiPubblici;
-        }
         popolarita = popolaritaDeezer(await deezer.leggi(id));
     } catch (e) {
         // Compatibilità durante un aggiornamento su volume preesistente.
@@ -174,7 +167,6 @@ async function dettaglioArtista(req, res) {
         album,
         eventi,
         seguito,
-        apple_music: appleMusic,
     });
 }
 

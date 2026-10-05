@@ -8,13 +8,13 @@ async function prepara() {
     const c = await pool.getConnection();
     let acquisito = false;
     try {
-        const [[lock]] = await c.query("SELECT GET_LOCK(CONCAT(DATABASE(), ':apple-music-schema'), 30) acquisito");
+        const [[lock]] = await c.query("SELECT GET_LOCK(CONCAT(DATABASE(), ':artisti-provider-schema'), 30) acquisito");
         acquisito = lock.acquisito === 1;
         if (!acquisito) throw new Error();
         for (const istruzione of sql.replace(/^--.*$/gm, '').split(';').map(s => s.trim()).filter(Boolean)) await c.query(istruzione);
         console.log('Schema provider pronto: artista_provider_link, artista_ticketmaster_presenza (CREATE IF NOT EXISTS).');
     } finally {
-        if (acquisito) await c.query("SELECT RELEASE_LOCK(CONCAT(DATABASE(), ':apple-music-schema'))");
+        if (acquisito) await c.query("SELECT RELEASE_LOCK(CONCAT(DATABASE(), ':artisti-provider-schema'))");
         c.release();
     }
 }

@@ -6,7 +6,6 @@ import {
     leggiAlbum,
     leggiArtista,
     leggiBrano,
-    leggiLinkApple,
     leggiLinkSpotify,
 } from '../api/catalogo';
 import { ErroreApi } from '../api/client';
@@ -231,7 +230,6 @@ export function DettaglioBrano() {
                         {brano.urlSpotify ? (
                             <LinkEsterno url={brano.urlSpotify}>{t('text.openOnSpotify')}</LinkEsterno>
                         ) : null}
-                        <LinkMappato id={brano.id} nome="Apple Music" carica={leggiLinkApple} />
                     </div>
                 </>
             )}

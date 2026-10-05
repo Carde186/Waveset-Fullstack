@@ -1,18 +1,18 @@
-const { ErroreAppleMusic } = require('./errore');
-const { pubblico } = require('./client');
+const { ErroreProvider } = require('./errore');
+const { pubblico } = require('./profilo');
 function profilo(r, provider) {
     if (!r) return null;
     const dati = typeof r.dati_normalizzati_json === 'string' ? JSON.parse(r.dati_normalizzati_json) : r.dati_normalizzati_json;
-    return { ...(provider === 'deezer' ? { provider, fan: dati.fan ?? null, immagine: dati.immagine ?? null } : {}), externalId: dati.externalId, name: dati.name, url: dati.url, artwork: dati.artwork,
+    return { provider, fan: dati.fan ?? null, immagine: dati.immagine ?? null, externalId: dati.externalId, name: dati.name, url: dati.url, artwork: dati.artwork,
         genres: dati.genres, storefront: dati.storefront, syncedAt: dati.syncedAt, versione: r.versione };
 }
-function creaRepository(pool, provider = 'apple_music', dopoSalvataggio) {
-    if (!['apple_music', 'deezer'].includes(provider)) throw new ErroreAppleMusic('PROVIDER_CONFIGURAZIONE', 503);
-    const prefisso = provider === 'deezer' ? 'DEEZER' : 'APPLE';
+function creaRepository(pool, provider = 'deezer', dopoSalvataggio) {
+    if (provider !== 'deezer') throw new ErroreProvider('PROVIDER_CONFIGURAZIONE', 503);
+    const prefisso = 'DEEZER';
     return {
         async artista(id) {
             const [[r]] = await pool.query('SELECT id, nome, immagine_url FROM artista WHERE id = ?', [id]);
-            if (!r) throw new ErroreAppleMusic('ARTISTA_NON_TROVATO', 404);
+            if (!r) throw new ErroreProvider('ARTISTA_NON_TROVATO', 404);
             return r;
         },
         async leggi(id) {
@@ -28,9 +28,9 @@ function creaRepository(pool, provider = 'apple_music', dopoSalvataggio) {
                     await c.beginTransaction();
                     // Serializza tutte le scritture per artista, anche il primo link.
                     const [[artista]] = await c.query('SELECT id FROM artista WHERE id = ? FOR UPDATE', [id]);
-                    if (!artista) throw new ErroreAppleMusic('ARTISTA_NON_TROVATO', 404);
+                    if (!artista) throw new ErroreProvider('ARTISTA_NON_TROVATO', 404);
                     const [[corrente]] = await c.query(`SELECT id, external_id, storefront, versione FROM artista_provider_link WHERE artista_id = ? AND provider = '${provider}' FOR UPDATE`, [id]);
-                    if ((corrente?.versione ?? null) !== versioneAttesa) throw new ErroreAppleMusic(`${prefisso}_CONFLITTO`, 409);
+                    if ((corrente?.versione ?? null) !== versioneAttesa) throw new ErroreProvider(`${prefisso}_CONFLITTO`, 409);
                     const valori = [dati.externalId, dati.storefront, dati.url, dati.artwork?.url ?? null,
                         JSON.stringify(pubblico(dati)), JSON.stringify(dati.raw), new Date(dati.syncedAt)];
                     if (corrente) {
@@ -44,7 +44,7 @@ function creaRepository(pool, provider = 'apple_music', dopoSalvataggio) {
                 } catch (e) {
                     await c.rollback();
                     if (e.code === 'ER_LOCK_DEADLOCK' && tentativo < 2) continue;
-                    if (e.code === 'ER_DUP_ENTRY') throw new ErroreAppleMusic(`${prefisso}_GIA_COLLEGATO`, 409);
+                    if (e.code === 'ER_DUP_ENTRY') throw new ErroreProvider(`${prefisso}_GIA_COLLEGATO`, 409);
                     throw e;
                 } finally { c.release(); }
             }

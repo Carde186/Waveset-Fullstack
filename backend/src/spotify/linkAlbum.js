@@ -1,8 +1,7 @@
 const pool = require('../config/database');
 
 // Mappatura fissa (nome artista + titolo album) -> link Spotify
-// ALL'ALBUM (mai il link di un singolo brano — vedi itunes/linkBrano.js
-// per quello). Link già verificati in una sessione precedente (artista
+// ALL'ALBUM (mai il link di un singolo brano). Link già verificati in una sessione precedente (artista
 // disambiguato per id — non il primo risultato di ricerca — album trovato
 // per titolo esatto e data, incrociata con MusicBrainz e Apple): nessuna
 // chiamata Spotify a runtime per "ritrovare" un link già noto.
@@ -57,11 +56,8 @@ const MAPPATURA_ALBUM_SPOTIFY = [
         albumTitolo: 'KYGO',
         linkAlbum: 'https://open.spotify.com/album/5BrjR0P59l9SsbODztqs3q',
     },
-    // Cloud Nine: presente qui (link Spotify all'album) ma apposta ASSENTE
-    // da itunes/copertina.js — nessun album Apple corrispondente esiste
-    // (vedi commento in importaCatalogoRealeLotto5.js). Il Dettaglio album
-    // mostra quindi solo questo pulsante Spotify, mai un link Apple al
-    // singolo Firestone spacciato per link all'album.
+    // Cloud Nine: link Spotify verificato; la copertina resta quella
+    // già salvata nel catalogo locale, senza lookup esterni.
     {
         artistaNome: 'Kygo',
         albumTitolo: 'Cloud Nine',

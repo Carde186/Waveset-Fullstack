@@ -19,7 +19,6 @@ function apri(percorso: string, rotte: Parameters<typeof simulaBackend>[0] = {})
         'GET /api/artisti/1': json(200, ARTISTA),
         'GET /api/brani/11': json(200, BRANO),
         'GET /api/album/21': json(200, ALBUM),
-        'GET /api/brani/11/link-apple': json(404, {}),
         'GET /api/album/21/link-spotify': json(404, {}),
         'GET /api/generi': json(200, GENERI),
         'GET /api/artisti': json(200, ARTISTI),
@@ -165,40 +164,31 @@ test('risposta 200 incompleta è errore, non dettaglio vuoto o 404', async () =>
     expect(screen.queryByText('Album non trovato.')).not.toBeInTheDocument();
 });
 
-test('link effettivi di traccia Apple e Spotify senza inventare un link album Apple', async () => {
-    apri('/brani/11', {
-        'GET /api/brani/11': json(200, {
-            ...BRANO,
-            urlSpotify: 'https://open.spotify.com/track/esempio',
-        }),
-        'GET /api/brani/11/link-apple': json(200, {
-            link_traccia: 'https://music.apple.com/it/album/esempio/1?i=2',
-        }),
+test('brano con link Spotify salvato: nessun link o richiesta Apple Music', async () => {
+    const backend = apri('/brani/11', {
+        'GET /api/brani/11': json(200, { ...BRANO, urlSpotify: 'https://open.spotify.com/track/esempio' }),
     });
-    const apple = await screen.findByRole('link', { name: 'Apri su Apple Music ↗' });
-    expect(apple).toHaveAttribute('href', 'https://music.apple.com/it/album/esempio/1?i=2');
-    expect(apple).toHaveAttribute('rel', 'noopener noreferrer');
-    expect(screen.getByRole('link', { name: 'Apri su Spotify ↗' })).toHaveAttribute(
-        'href',
-        'https://open.spotify.com/track/esempio',
-    );
+    await titolo('Voltaggio');
+    expect(screen.getByRole('link', { name: 'Apri su Spotify ↗' })).toHaveAttribute('href', 'https://open.spotify.com/track/esempio');
+    expect(screen.queryByRole('link', { name: /Apple Music/ })).not.toBeInTheDocument();
+    expect(backend.chiamate.some(c => /link-apple|apple-music/.test(c.percorso))).toBe(false);
 });
 
 test('guasto di un link opzionale non nasconde il dettaglio; riprova senza ricaricare il brano', async () => {
     let n = 0;
-    const backend = apri('/brani/11', {
-        'GET /api/brani/11/link-apple': () =>
+    const backend = apri('/album/21', {
+        'GET /api/album/21/link-spotify': () =>
             ++n === 1
                 ? json(500, {})
-                : json(200, { link_traccia: 'https://music.apple.com/it/album/esempio/1?i=2' }),
+                : json(200, { link_store: 'https://open.spotify.com/album/esempio' }),
     });
-    await titolo('Voltaggio');
+    await titolo(ALBUM.titolo);
     expect(await screen.findByRole('alert')).toHaveTextContent(
-        'Il link Apple Music non è disponibile',
+        'Il link Spotify non è disponibile',
     );
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Riprova link Apple Music' }));
-    expect(await screen.findByRole('link', { name: 'Apri su Apple Music ↗' })).toBeInTheDocument();
-    expect(backend.di('GET', '/api/brani/11')).toHaveLength(1);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Riprova link Spotify' }));
+    expect(await screen.findByRole('link', { name: 'Apri su Spotify ↗' })).toBeInTheDocument();
+    expect(backend.di('GET', '/api/album/21')).toHaveLength(1);
 });
 
 test('link Spotify album: quello restituito dalla mappatura', async () => {

@@ -1,7 +1,7 @@
-const { ErroreAppleMusic } = require('../appleMusic/errore');
+const { ErroreProvider } = require('./errore');
 function providerAttivo(env = process.env) {
     const valore = env.ARTISTI_PROVIDER || 'deezer';
-    if (!['deezer', 'apple_music'].includes(valore)) throw new ErroreAppleMusic('PROVIDER_CONFIGURAZIONE', 503);
+    if (valore !== 'deezer') throw new ErroreProvider('PROVIDER_CONFIGURAZIONE', 503);
     return valore;
 }
 module.exports = { providerAttivo };

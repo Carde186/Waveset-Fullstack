@@ -5,7 +5,7 @@ const { hashToken } = require('../src/autenticazione/token');
 const { generaCsrf } = require('../src/autenticazione/csrf');
 const device = '12345678-1234-4234-8234-123456789abc';
 const token = 'a'.repeat(64);
-let server, origine, follow, query, ruolo, utente, guasto, profiloApple, tabellaAppleAssente, immagineCollegata, immagineLocale, copertina;
+let server, origine, follow, query, ruolo, utente, guasto, profiloDeezer, tabellaProviderAssente, immagineCollegata, immagineLocale, copertina;
 const db = { async query(sql, valori = []) {
     query.push({ sql, valori });
     if (sql.includes('FROM sessioni')) return [[{ id: 10, utente_id: utente, hash_token: hashToken(token), valida: 1, ruolo }]];
@@ -20,14 +20,14 @@ const db = { async query(sql, valori = []) {
     }
     if (sql.includes('FROM artista a') && sql.includes('GROUP BY')) return [[{ id: 1, nome: 'Artista', immagine_url: immagineLocale }]];
     if (sql.startsWith('SELECT artista_id, immagine_url FROM artista_provider_link')) {
-        if (tabellaAppleAssente) throw Object.assign(new Error('Tabella mancante'), { code: 'ER_NO_SUCH_TABLE' });
+        if (tabellaProviderAssente) throw Object.assign(new Error('Tabella mancante'), { code: 'ER_NO_SUCH_TABLE' });
         return [immagineCollegata ? [{ artista_id: 1, immagine_url: immagineCollegata }] : []];
     }
     if (sql.includes('FROM artista') && sql.includes('nome LIKE')) return [[{ id: 1, nome: 'Artista', immagine_url: immagineLocale }]];
     if (sql.includes('FROM artista WHERE')) return [[{ id: Number(valori[0]), nome: 'Artista', bio: null, immagine_url: immagineLocale, immagine_autore: immagineLocale ? 'Autore locale' : null }]];
     if (sql.includes('FROM artista_provider_link')) {
-        if (tabellaAppleAssente) throw Object.assign(new Error('Tabella mancante'), { code: 'ER_NO_SUCH_TABLE' });
-        return [profiloApple ? [{ dati_normalizzati_json: profiloApple, versione: 7 }] : []];
+        if (tabellaProviderAssente) throw Object.assign(new Error('Tabella mancante'), { code: 'ER_NO_SUCH_TABLE' });
+        return [profiloDeezer ? [{ dati_normalizzati_json: profiloDeezer, versione: 7 }] : []];
     }
     if (sql.includes('FROM evento e') && sql.includes('WHERE e.id = ?')) return [[{ id: Number(valori[0]), titolo: 'Principale', data_evento: '2027-01-01', latitudine: '45', longitudine: '9', immagine_evento: copertina }]];
     if (sql.includes('FROM evento e') && sql.includes('CURDATE()')) {
@@ -53,7 +53,7 @@ before(async () => {
     server = await new Promise((resolve, reject) => { const s = app.listen(0, '127.0.0.1', e => e ? reject(e) : resolve(s)); });
     origine = `http://127.0.0.1:${server.address().port}`;
 });
-beforeEach(() => { follow = new Set(); query = []; ruolo = 'USER'; utente = 1; guasto = false; profiloApple = null; tabellaAppleAssente = false; immagineCollegata = null; immagineLocale = null; copertina = null; });
+beforeEach(() => { follow = new Set(); query = []; ruolo = 'USER'; utente = 1; guasto = false; profiloDeezer = null; tabellaProviderAssente = false; immagineCollegata = null; immagineLocale = null; copertina = null; });
 after(async () => { if (server) await new Promise(r => server.close(r)); });
 async function chiama(percorso, method = 'GET', headers = {}, body) {
     const r = await fetch(origine + '/api' + percorso, { method, headers: {
@@ -71,14 +71,15 @@ test('follow duplicato e unfollow inesistente sono idempotenti, dettaglio aggior
     assert.equal(follow.size, 0); assert.equal((await chiama('/artisti/1')).dati.seguito, false);
     assert.equal((await chiama('/artisti/99999/segui', 'DELETE')).status, 204);
 });
-test('dettaglio artista: profilo Apple pubblico retrocompatibile, niente raw/versione/secret', async () => {
-    profiloApple = { externalId: '123', name: 'Apple', url: 'https://music.apple.com/it/artist/test/123', artwork: null,
-        genres: [], storefront: 'it', syncedAt: '2026-10-03T10:00:00Z', raw: { privato: 'NON_ESPOSTO' } };
+test('dettaglio artista: fan Deezer pubblici, nessun profilo Apple/raw/versione/secret', async () => {
+    profiloDeezer = { externalId: '123', name: 'Deezer', provider: 'deezer', fan: 12, url: 'https://www.deezer.com/artist/123', artwork: null,
+        genres: [], storefront: '', syncedAt: '2026-10-03T10:00:00Z', raw: { privato: 'NON_ESPOSTO' } };
     const r = await chiama('/artisti/1'); assert.equal(r.status, 200); assert.equal(r.dati.nome, 'Artista');
-    assert.equal(r.dati.apple_music.externalId, '123'); assert.equal(Object.hasOwn(r.dati.apple_music, 'versione'), false);
+    assert.equal(r.dati.popolarita_deezer.fan, 12); assert.equal(Object.hasOwn(r.dati, 'apple_music'), false);
     assert(!JSON.stringify(r.dati).includes('NON_ESPOSTO'));
-    tabellaAppleAssente = true;
-    const vecchio = await chiama('/artisti/1'); assert.equal(vecchio.status, 200); assert.equal(vecchio.dati.apple_music, null);
+    assert(!query.some(q => q.sql.includes("provider = 'apple_music'")));
+    tabellaProviderAssente = true;
+    const vecchio = await chiama('/artisti/1'); assert.equal(vecchio.status, 200); assert.equal(vecchio.dati.popolarita_deezer, null);
 });
 test('artista inesistente: follow 404, nessun inserimento', async () => {
     assert.equal((await chiama('/artisti/99999/segui', 'PUT')).status, 404);

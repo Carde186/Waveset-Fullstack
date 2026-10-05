@@ -6,13 +6,13 @@ import { ALICE, CSRF, differita, json, renderizzaApp, SESSIONE_NON_VALIDA, sessi
 const admin = { ...ALICE, ruolo: 'ADMIN' as const };
 const auth = { 'GET /api/auth/io': json(200, sessioneDi(admin)) };
 const artista = { id: 5, nome: 'Artista locale' };
-const profilo = { externalId: '123', name: 'Artista Apple', url: 'https://music.apple.com/it/artist/artista/123',
-    artwork: { url: 'https://is1-ssl.mzstatic.com/foto.jpg', width: 600, height: 600 }, genres: ['Electronic'],
-    provider: 'apple_music', fan: null, ticketmaster: { stato: 'non_verificato', attractions: [], ambiguo: false, controllatoAt: null }, storefront: 'it', syncedAt: '2026-10-03T10:00:00Z' };
-const percorso = '/api/admin/artisti/5/apple-music';
+const profilo = { externalId: '123', name: 'Artista Deezer', url: 'https://www.deezer.com/artist/123',
+    artwork: { url: 'https://cdn-images.dzcdn.net/foto.jpg', width: 600, height: 600 }, genres: ['Electronic'],
+    provider: 'deezer', fan: null, ticketmaster: { stato: 'non_verificato', attractions: [], ambiguo: false, controllatoAt: null }, storefront: '', syncedAt: '2026-10-03T10:00:00Z' };
+const percorso = '/api/admin/artisti/5/deezer';
 const ricerca = `${percorso}/search?q=Artista+locale`;
 function apri(extra: Parameters<typeof simulaBackend>[0] = {}) {
-    const backend = simulaBackend({ ...auth, ['GET /api/admin/artisti/5/provider']: json(200, { provider: 'apple_music', artista, collegamento: null }), ...extra });
+    const backend = simulaBackend({ ...auth, ['GET /api/admin/artisti/5/provider']: json(200, { provider: 'deezer', artista, collegamento: null }), ...extra });
     renderizzaApp('/admin/artisti/5'); return backend;
 }
 async function cerca() {
@@ -27,7 +27,7 @@ test('ospite e USER: nessuna chiamata ADMIN su lista o dettaglio', async () => {
     expect(user.chiamate).toHaveLength(1); expect(screen.queryByRole('link', { name: 'Gestione artisti' })).not.toBeInTheDocument();
 });
 test('lista: tutti gli artisti locali anche senza provider, navigazione ADMIN e link al dettaglio', async () => {
-    const backend = simulaBackend({ ...auth, 'GET /api/admin/artisti/provider': json(200, { provider: 'apple_music' }),
+    const backend = simulaBackend({ ...auth, 'GET /api/admin/artisti/provider': json(200, { provider: 'deezer' }),
         'GET /api/admin/artisti': json(200, [{ ...artista, provider_collegato: null }]) });
     renderizzaApp('/admin/artisti');
     expect(await screen.findByRole('link', { name: 'Artista locale ↗' })).toHaveAttribute('href', '/admin/artisti/5');
@@ -76,36 +76,36 @@ test('ricerca loading, foto/nome/generi/link, selezione, conferma esplicita e sa
     expect(screen.getByText('Ricerca nel catalogo in corso…')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cerca artista' })).toBeDisabled();
     sospesa.risolvi(json(200, { risultati: [profilo] }));
-    await screen.findByRole('radio', { name: 'Seleziona Artista Apple' });
+    await screen.findByRole('radio', { name: 'Seleziona Artista Deezer' });
     expect(screen.getByRole('img')).toHaveAttribute('src', profilo.artwork.url);
     expect(screen.getByText('Electronic')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Apri su Apple Music ↗' })).toHaveAttribute('href', profilo.url);
-    await user.click(screen.getByRole('radio', { name: 'Seleziona Artista Apple' }));
+    expect(screen.getByRole('link', { name: 'Apri su Deezer ↗' })).toHaveAttribute('href', profilo.url);
+    await user.click(screen.getByRole('radio', { name: 'Seleziona Artista Deezer' }));
     await user.click(screen.getByRole('button', { name: 'Verifica collegamento' }));
     expect(backend.di('POST', `${percorso}/collegamento`)).toHaveLength(0);
-    expect(screen.getByText(/Confermi che Artista Apple/)).toBeInTheDocument();
+    expect(screen.getByText(/Confermi che Artista Deezer/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Conferma e salva' }));
     await screen.findByText('Collegamento artista salvato.');
     expect(backend.di('POST', `${percorso}/collegamento`)[0]?.corpo).toEqual({ external_id: '123', versione_attesa: null });
     expect(backend.di('POST', `${percorso}/collegamento`)[0]?.intestazioni['X-CSRF-Token']).toBe(CSRF);
-    expect(within(screen.getByRole('region', { name: 'Profilo artista collegato' })).getByRole('heading', { name: 'Artista Apple' })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Profilo artista collegato' })).getByRole('heading', { name: 'Artista Deezer' })).toBeInTheDocument();
 });
 test('ricerca vuota e senza immagine: messaggi chiari, nessun collegamento inventato', async () => {
     apri({ [`GET ${ricerca}`]: json(200, { risultati: [] }) }); await cerca();
     await screen.findByText('Nessun artista trovato. Prova un altro nome.');
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
 });
-test('ricerca: configurazione assente ed errore Apple tradotti, retry possibile', async () => {
+test('ricerca: configurazione assente ed errore Deezer tradotti, retry possibile', async () => {
     let n = 0;
-    apri({ [`GET ${ricerca}`]: () => ++n === 1 ? json(503, { codice: 'APPLE_CONFIGURAZIONE' }) : json(200, { risultati: [{ ...profilo, artwork: null }] }) });
+    apri({ [`GET ${ricerca}`]: () => ++n === 1 ? json(503, { codice: 'DEEZER_CONFIGURAZIONE' }) : json(200, { risultati: [{ ...profilo, artwork: null }] }) });
     const user = await cerca();
-    expect(await screen.findByRole('alert')).toHaveTextContent('Apple Music non è configurato');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Configurazione del provider artisti assente o non valida.');
     await user.click(screen.getByRole('button', { name: 'Cerca artista' }));
     await screen.findByLabelText('Foto artista non disponibile');
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
 });
 test('profilo già collegato esplicito; sync mantiene ID e usa versione corrente', async () => {
-    const backend = apri({ ['GET /api/admin/artisti/5/provider']: json(200, { provider: 'apple_music', artista, collegamento: { ...profilo, versione: 3 } }),
+    const backend = apri({ ['GET /api/admin/artisti/5/provider']: json(200, { provider: 'deezer', artista, collegamento: { ...profilo, versione: 3 } }),
         [`GET ${ricerca}`]: json(200, { risultati: [profilo] }),
         [`POST ${percorso}/sincronizza`]: json(200, { ...profilo, name: 'Nome aggiornato', versione: 4 }) });
     const user = await cerca(); await screen.findByText('Collegamento attuale');
@@ -117,7 +117,7 @@ test('profilo già collegato esplicito; sync mantiene ID e usa versione corrente
 test('sostituzione richiede conferma/annulla; doppio click non duplica scritture; conflitto conserva profilo', async () => {
     const sospesa = differita<Response>();
     let letture = 0;
-    const backend = apri({ ['GET /api/admin/artisti/5/provider']: () => json(200, { provider: 'apple_music', artista, collegamento: { ...profilo, versione: ++letture === 1 ? 5 : 6 } }),
+    const backend = apri({ ['GET /api/admin/artisti/5/provider']: () => json(200, { provider: 'deezer', artista, collegamento: { ...profilo, versione: ++letture === 1 ? 5 : 6 } }),
         [`GET ${ricerca}`]: json(200, { risultati: [{ ...profilo, externalId: '456', name: 'Altro artista' }] }),
         [`POST ${percorso}/collegamento`]: () => sospesa.promessa });
     const user = await cerca(); await user.click(await screen.findByRole('radio', { name: 'Seleziona Altro artista' }));
@@ -128,21 +128,21 @@ test('sostituzione richiede conferma/annulla; doppio click non duplica scritture
     await user.dblClick(screen.getByRole('button', { name: 'Conferma e salva' }));
     expect(backend.di('POST', `${percorso}/collegamento`)).toHaveLength(1);
     expect(backend.di('POST', `${percorso}/collegamento`)[0]?.corpo).toEqual({ external_id: '456', versione_attesa: 5 });
-    sospesa.risolvi(json(409, { codice: 'APPLE_CONFLITTO' }));
+    sospesa.risolvi(json(409, { codice: 'DEEZER_CONFLITTO' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Il collegamento è stato modificato');
-    expect(within(screen.getByRole('region', { name: 'Profilo artista collegato' })).getByText('Artista Apple')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Profilo artista collegato' })).getByText('Artista Deezer')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Ricarica collegamento' }));
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
     expect(backend.di('GET', '/api/admin/artisti/5/provider')).toHaveLength(2);
     expect(screen.queryByRole('button', { name: 'Conferma e salva' })).not.toBeInTheDocument();
 });
 test('errore sync conserva metadati e non invia cambi di identità; IT/EN senza nuova ricerca', async () => {
-    const backend = apri({ ['GET /api/admin/artisti/5/provider']: json(200, { provider: 'apple_music', artista, collegamento: { ...profilo, versione: 2 } }),
-        [`POST ${percorso}/sincronizza`]: json(503, { codice: 'APPLE_TIMEOUT' }) });
+    const backend = apri({ ['GET /api/admin/artisti/5/provider']: json(200, { provider: 'deezer', artista, collegamento: { ...profilo, versione: 2 } }),
+        [`POST ${percorso}/sincronizza`]: json(503, { codice: 'DEEZER_TIMEOUT' }) });
     const user = userEvent.setup(); await user.click(await screen.findByRole('button', { name: 'Risincronizza metadati' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Apple Music non ha risposto in tempo');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Il catalogo non ha risposto in tempo');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Lingua' }), 'en');
-    expect(screen.getByRole('alert')).toHaveTextContent('Apple Music did not respond in time');
+    expect(screen.getByRole('alert')).toHaveTextContent('The catalog did not respond in time');
     expect(screen.getByRole('button', { name: 'Search artists' })).toBeInTheDocument();
     expect(backend.di('GET', '/api/admin/artisti/5/provider')).toHaveLength(1); expect(backend.di('POST', `${percorso}/collegamento`)).toHaveLength(0);
 });

@@ -2,7 +2,6 @@ const express = require('express');
 
 const pool = require('../config/database');
 const { immaginiArtisti } = require('../artistiProvider/immagini');
-const { trovaLinkBranoApple } = require('../itunes/linkBrano');
 const formattaBrano = require('../utilita/formattaBrano');
 
 const { artistaPubblico } = require('../catalogo/pubblico');
@@ -33,26 +32,6 @@ async function dettaglioBrano(req, res) {
     res.json(formattaBrano(brano));
 }
 
-// Link Apple Music ALLA TRACCIA (mai il link album — vedi
-// src/itunes/linkBrano.js) per i (soli) brani reali con una mappatura
-// verificata: id di traccia fissi, mai cercati per somiglianza del
-// titolo in una tracklist live. Mappatura statica, nessuna chiamata
-// Apple: non c'è nulla da "ritrovare".
-async function linkApple(req, res) {
-    const { id } = req.params;
-    const link = await trovaLinkBranoApple(id);
-
-    if (!link) {
-        res.status(404).json({
-            messaggio: 'Nessun link Apple Music associato a questo brano',
-        });
-        return;
-    }
-
-    res.json({ link_traccia: link });
-}
-
 router.get('/brani/:id', dettaglioBrano);
-router.get('/brani/:id/link-apple', linkApple);
 
 module.exports = router;

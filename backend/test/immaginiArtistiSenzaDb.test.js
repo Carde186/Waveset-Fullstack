@@ -14,7 +14,8 @@ test('Immagini: un batch, provider attivo solo, duplicati/ordine immutati e prov
     assert.deepEqual(r.map(a => a.immagine_url), ['provider', 'locale2', 'provider', null]);
     assert.deepEqual(r.map(a => a.immagine_provider), ['deezer', null, 'deezer', null]);
     assert.equal(righe[0].immagine_url, 'locale');
-    await immaginiArtisti(righe, { pool, env: { ARTISTI_PROVIDER: 'apple_music' } }); assert.equal(chiamate[1][1][0], 'apple_music');
+    await assert.rejects(immaginiArtisti(righe, { pool, env: { ARTISTI_PROVIDER: 'apple_music' } }), e => e.codice === 'PROVIDER_CONFIGURAZIONE');
+    assert.equal(chiamate.length, 1); // nessuna lettura di profili del provider ritirato
 });
 test('Immagini: alias nested brani/album, vuoto senza query e volume pre-migrazione', async () => {
     let n = 0;
