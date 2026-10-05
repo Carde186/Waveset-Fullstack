@@ -30,6 +30,7 @@ const routeNovita = require('./routes/novita');
 const routePlaylist = require('./routes/playlist');
 const routeRicerca = require('./routes/ricerca');
 const routeSalute = require('./routes/salute');
+const { creaRoute: creaRouteDiscografia } = require('./routes/discografia');
 
 // Le opzioni servono SOLO ai test (soglie basse, orologio controllato, IP
 // simulato) e sono parametri di codice: non arrivano mai da HTTP né dall'ambiente.
@@ -106,6 +107,7 @@ function creaApp(opzioni = {}) {
     app.use(express.json());
     app.use(routeSalute);
     app.use('/api', routeGeneri);
+    app.use('/api', creaRouteDiscografia(opzioni.discografia));
     app.use('/api', routeArtisti);
     app.use('/api', routeBrani);
     app.use('/api', routeAlbum);

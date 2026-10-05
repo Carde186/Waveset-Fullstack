@@ -4,6 +4,7 @@ const pool = require('../config/database');
 const { immaginiArtisti } = require('../artistiProvider/immagini');
 const formattaBrano = require('../utilita/formattaBrano');
 
+const { artistaPubblico } = require('../catalogo/pubblico');
 const router = express.Router();
 
 const LUNGHEZZA_MINIMA = 2;
@@ -49,7 +50,7 @@ async function cerca(req, res) {
     const [artisti] = await pool.query(
         `SELECT id, nome, immagine_url
          FROM artista
-         WHERE nome LIKE ? ESCAPE '\\\\'
+         WHERE ${artistaPubblico('artista')} AND nome LIKE ? ESCAPE '\\\\'
          ORDER BY nome LIKE ? ESCAPE '\\\\' DESC, nome
          LIMIT ?`,
         [contiene, iniziaCon, LIMITE_PER_SEZIONE],
@@ -64,7 +65,7 @@ async function cerca(req, res) {
          FROM brano b
          INNER JOIN artista a ON a.id = b.artista_id
          LEFT JOIN album al ON al.id = b.album_id
-         WHERE b.titolo LIKE ? ESCAPE '\\\\'
+         WHERE ${artistaPubblico()} AND b.titolo LIKE ? ESCAPE '\\\\'
          ORDER BY b.titolo LIKE ? ESCAPE '\\\\' DESC, b.titolo
          LIMIT ?`,
         [contiene, iniziaCon, LIMITE_PER_SEZIONE],

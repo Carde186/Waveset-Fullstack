@@ -101,14 +101,44 @@ function creaClient({ env = process.env, fetchImpl = globalThis.fetch, ora = Dat
         inCorso.set(chiave, lavoro);
         try { return structuredClone(await lavoro); } finally { inCorso.delete(chiave); }
     }
+    async function catalogo(percorso) {
+        const chiave = `catalogo:${percorso}`;
+        const precedente = cache.get(chiave);
+        if (precedente && precedente.scade > ora()) return structuredClone(precedente.dati);
+        if (inCorso.has(chiave)) return structuredClone(await inCorso.get(chiave));
+        const lavoro = richiesta(percorso).then(dati => {
+            if (cache.size >= 100) cache.delete(cache.keys().next().value);
+            cache.set(chiave, { scade: ora() + 300000, dati });
+            return dati;
+        });
+        inCorso.set(chiave, lavoro);
+        try { return structuredClone(await lavoro); } finally { inCorso.delete(chiave); }
+    }
+    function validaId(id) {
+        if (typeof id !== 'string' || !/^[1-9]\d{0,15}$/.test(id) || !Number.isSafeInteger(Number(id))) throw new ErroreProvider('DEEZER_PARAMETRI', 400);
+    }
     return {
         cerca,
+        async discografia(id, indice = 0) {
+            validaId(id);
+            if (!Number.isSafeInteger(indice) || indice < 0 || indice > 1200 || indice % 12 !== 0) throw new ErroreProvider('DEEZER_PARAMETRI', 400);
+            const { lista, brano, album } = require('./discografia');
+            const [top, uscite] = await Promise.all([
+                indice === 0 ? catalogo(`/artist/${id}/top?limit=10`) : null,
+                catalogo(`/artist/${id}/albums?limit=12&order=RELEASE_DATE_DESC&index=${indice}`),
+            ]);
+            const pubblicazioni = lista(uscite, album, 12);
+            return { provider: 'deezer', externalId: id, brani: top ? lista(top, brano, 10).dati : [],
+                pubblicazioni: pubblicazioni.dati.sort((a, b) => (b.dataPubblicazione ?? '').localeCompare(a.dataPubblicazione ?? '') || Number(b.externalId) - Number(a.externalId)),
+                prossimoIndice: uscite.data.length === 12 && indice + 12 < uscite.total && indice + 12 <= 1200 ? indice + 12 : null,
+                totale: pubblicazioni.totale, controllatoAt: new Date(ora()).toISOString() };
+        },
         async dettaglio(id) {
-            if (typeof id !== 'string' || !/^[1-9]\d{0,15}$/.test(id) || !Number.isSafeInteger(Number(id))) throw new ErroreProvider('DEEZER_PARAMETRI', 400);
+            validaId(id);
             const dati = normalizza(await richiesta(`/artist/${id}`), ora);
             if (dati.externalId !== id) throw new ErroreProvider('DEEZER_DATI_INVALIDI');
             return dati;
         },
     };
 }
-module.exports = { creaClient, normalizza };
+module.exports = { creaClient, normalizza, urlSicuro };

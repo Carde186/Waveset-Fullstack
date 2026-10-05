@@ -34,27 +34,38 @@ async function elencaEventi(req, res) {
         return;
     }
 
+    const genere = req.query.genere_id;
+    if (genere !== undefined && (typeof genere !== 'string' || !/^[1-9]\d*$/.test(genere) ||
+        !Number.isSafeInteger(Number(genere)) || Number(genere) > 2147483647)) {
+        return res.status(400).json({ messaggio: 'genere_id non valido' });
+    }
+
     if (filtro === 'seguiti' && !req.utente) {
         res.status(401).json({ messaggio: 'Sessione non valida' });
         return;
     }
 
-    const [righe] =
-        filtro === 'seguiti'
-            ? await pool.query(
-                  `SELECT ${COLONNE_EVENTO}
-                   FROM evento e ${FONTE}
-                   WHERE e.data_evento >= CURDATE() AND ${SOLO_PUBBLICATI}
-                       AND ${CON_ARTISTA_SEGUITO}
-                   ORDER BY e.data_evento, e.ora_evento`,
-                  [req.utente.id],
-              )
-            : await pool.query(
-                  `SELECT ${COLONNE_EVENTO}
-                   FROM evento e ${FONTE}
-                   WHERE e.data_evento >= CURDATE() AND ${SOLO_PUBBLICATI}
-                   ORDER BY e.data_evento, e.ora_evento`,
-              );
+    // EXISTS include qualunque artista della lineup senza duplicare gli eventi
+    // con più artisti/generi. Il vecchio filtro API seguiti resta compatibile.
+    const condizioni = [], parametri = [];
+    if (filtro === 'seguiti') {
+        condizioni.push(CON_ARTISTA_SEGUITO);
+        parametri.push(req.utente.id);
+    }
+    if (genere !== undefined) {
+        condizioni.push(`EXISTS (SELECT 1 FROM evento_artista genere_ea
+            INNER JOIN artista_genere genere_ag ON genere_ag.artista_id=genere_ea.artista_id
+            WHERE genere_ea.evento_id=e.id AND genere_ag.genere_id=?)`);
+        parametri.push(Number(genere));
+    }
+    const [righe] = await pool.query(
+        `SELECT ${COLONNE_EVENTO}
+         FROM evento e ${FONTE}
+         WHERE e.data_evento >= CURDATE() AND ${SOLO_PUBBLICATI}
+         ${condizioni.map(c => `AND ${c}`).join('\n')}
+         ORDER BY e.data_evento, e.ora_evento`,
+        parametri,
+    );
 
     res.json(await formattaEventi(righe));
 }

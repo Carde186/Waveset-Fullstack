@@ -5,6 +5,7 @@ const pool = require('../config/database');
 const { immaginiArtisti } = require('../artistiProvider/immagini');
 const { trovaLinkAlbumSpotify } = require('../spotify/linkAlbum');
 
+const { artistaPubblico } = require('../catalogo/pubblico');
 const router = express.Router();
 
 async function dettaglioAlbum(req, res) {
@@ -15,7 +16,7 @@ async function dettaglioAlbum(req, res) {
                 a.id AS artista_id, a.nome AS artista_nome, a.immagine_url AS artista_immagine_url
          FROM album al
          INNER JOIN artista a ON a.id = al.artista_id
-         WHERE al.id = ?`,
+         WHERE al.id = ? AND ${artistaPubblico()}`,
         [id],
     );
 

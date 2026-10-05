@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { EVENTO_PUBBLICO } = require('../catalogo/pubblico');
 const { immaginiArtisti } = require('../artistiProvider/immagini');
 const { leggiImmagine } = require('../ticketmaster/immagini');
 
@@ -11,7 +12,7 @@ const COLONNE_EVENTO = `e.id, e.titolo, e.data_evento, e.ora_evento, e.luogo,
 
 // Ticketmaster è pubblico solo con approvazione automatica persistita.
 // Il catalogo manuale e i filtri restano invariati. Una fonte annullata è nascosta.
-const SOLO_PUBBLICATI = "e.stato = 'pubblicato' AND (e.fonte <> 'ticketmaster' OR EXISTS (SELECT 1 FROM ollama_evento_job oj WHERE oj.evento_id=e.id AND oj.stato='approva')) AND NOT EXISTS (SELECT 1 FROM ticketmaster_evento_fonte sf WHERE sf.evento_id=e.id AND sf.stato_fonte='canceled')";
+const SOLO_PUBBLICATI = "e.stato = 'pubblicato' AND (e.fonte <> 'ticketmaster' OR EXISTS (SELECT 1 FROM ollama_evento_job oj WHERE oj.evento_id=e.id AND oj.stato='approva')) AND NOT EXISTS (SELECT 1 FROM ticketmaster_evento_fonte sf WHERE sf.evento_id=e.id AND sf.stato_fonte='canceled')" + ` AND ${EVENTO_PUBBLICO}`;
 
 // Condizione "ha in lineup almeno un artista seguito dall'utente ?".
 const CON_ARTISTA_SEGUITO = `EXISTS (

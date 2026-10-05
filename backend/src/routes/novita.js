@@ -11,6 +11,7 @@ const {
     formattaEventi,
 } = require('../utilita/eventi');
 
+const { artistaPubblico } = require('../catalogo/pubblico');
 const router = express.Router();
 
 const LIMITE_BRANI = 10;
@@ -36,7 +37,7 @@ async function novita(req, res) {
         const [brani] = await pool.query(
             `${SELECT_BRANO}
              INNER JOIN utente_artista ua ON ua.artista_id = b.artista_id
-             WHERE ua.utente_id = ?
+             WHERE ${artistaPubblico()} AND ua.utente_id = ?
              ORDER BY b.data_pubblicazione DESC
              LIMIT ?`,
             [req.utente.id, LIMITE_BRANI],
@@ -64,6 +65,7 @@ async function novita(req, res) {
 
     const [brani] = await pool.query(
         `${SELECT_BRANO}
+         WHERE ${artistaPubblico()}
          ORDER BY b.data_pubblicazione DESC
          LIMIT ?`,
         [LIMITE_BRANI],

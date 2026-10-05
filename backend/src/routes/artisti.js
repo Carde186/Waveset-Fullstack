@@ -7,9 +7,28 @@ const pool = require('../config/database');
 const { SOLO_PUBBLICATI } = require('../utilita/eventi');
 const { creaRepository } = require('../appleMusic/repository');
 const provider = creaRepository(pool);
+const deezer = creaRepository(pool, 'deezer');
+const { biografia, popolaritaDeezer } = require('../catalogo/profiloPubblico');
 const { immaginiArtisti } = require('../artistiProvider/immagini');
 
+const { artistaPubblico } = require('../catalogo/pubblico');
 const router = express.Router();
+
+async function artistiSeguiti(req, res) {
+    res.set('Cache-Control', 'no-store');
+    try {
+        const [righe] = await pool.query(
+            `SELECT a.id, a.nome, a.immagine_url FROM artista a
+             INNER JOIN utente_artista ua ON ua.artista_id=a.id
+             WHERE ua.utente_id=? AND ${artistaPubblico()}
+             ORDER BY a.nome`,
+            [req.utente.id],
+        );
+        res.json(await immaginiArtisti(righe));
+    } catch {
+        throw new Error('Lettura artisti seguiti non riuscita');
+    }
+}
 
 // "Esplora per genere". Ordine per numero di follower (l'unico dato di
 // popolarità disponibile), poi per nome. Con escludi_seguiti=1 e una
@@ -18,7 +37,7 @@ const router = express.Router();
 async function elencaArtisti(req, res) {
     const { genere_id: genereId, escludi_seguiti: escludiSeguiti } = req.query;
 
-    const condizioni = [];
+    const condizioni = [artistaPubblico()];
     const parametri = [];
 
     if (genereId) {
@@ -57,7 +76,7 @@ async function dettaglioArtista(req, res) {
     const [righeArtista] = await pool.query(
         `SELECT id, nome, bio, immagine_url,
                 immagine_autore, immagine_licenza, immagine_fonte_url, immagine_modificata
-         FROM artista WHERE id = ?`,
+         FROM artista WHERE id = ? AND ${artistaPubblico('artista')}`,
         [id],
     );
 
@@ -114,12 +133,14 @@ async function dettaglioArtista(req, res) {
 
     const [riga] = await immaginiArtisti(righeArtista);
     let appleMusic = null;
+    let popolarita = null;
     try {
         const collegamento = await provider.leggi(id);
         if (collegamento) {
             const { versione, ...datiPubblici } = collegamento;
             appleMusic = datiPubblici;
         }
+        popolarita = popolaritaDeezer(await deezer.leggi(id));
     } catch (e) {
         // Compatibilità durante un aggiornamento su volume preesistente.
         // Solo la tabella mancante è tollerata; nessun errore DB viene nascosto.
@@ -143,6 +164,8 @@ async function dettaglioArtista(req, res) {
         id: riga.id,
         nome: riga.nome,
         bio: riga.bio,
+        biografia: biografia(riga.nome, riga.bio),
+        popolarita_deezer: popolarita,
         immagine_url: riga.immagine_url,
         immagine_provider: riga.immagine_provider,
         credito_immagine: creditoImmagine,
@@ -209,6 +232,7 @@ function validaIdFollow(req, res, next) {
 const protezioniFollow = [richiediAutenticazione, richiediRuolo('USER'), validaIdFollow];
 
 router.get('/artisti', autenticazioneFacoltativa, elencaArtisti);
+router.get('/artisti/seguiti', richiediAutenticazione, richiediRuolo('USER'), artistiSeguiti);
 router.get('/artisti/:id', autenticazioneFacoltativa, dettaglioArtista);
 router.put('/artisti/:id/segui', ...protezioniFollow, seguiArtista);
 router.delete('/artisti/:id/segui', ...protezioniFollow, smettiDiSeguire);

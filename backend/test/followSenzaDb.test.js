@@ -14,6 +14,10 @@ const db = { async query(sql, valori = []) {
     if (sql.startsWith('INSERT IGNORE')) { follow.add(`${valori[0]}:${valori[1]}`); return [{ affectedRows: 1 }]; }
     if (sql.startsWith('DELETE FROM utente_artista')) { follow.delete(`${valori[0]}:${valori[1]}`); return [{ affectedRows: 1 }]; }
     if (sql.includes('SELECT 1 FROM utente_artista')) return [follow.has(`${valori[0]}:${valori[1]}`) ? [{}] : []];
+    if (sql.includes('FROM artista a') && sql.includes('INNER JOIN utente_artista ua')) {
+        return [[1, 2].filter(id => follow.has(`${valori[0]}:${id}`))
+            .map(id => ({ id, nome: `Artista ${id}`, immagine_url: immagineLocale }))];
+    }
     if (sql.includes('FROM artista a') && sql.includes('GROUP BY')) return [[{ id: 1, nome: 'Artista', immagine_url: immagineLocale }]];
     if (sql.startsWith('SELECT artista_id, immagine_url FROM artista_provider_link')) {
         if (tabellaAppleAssente) throw Object.assign(new Error('Tabella mancante'), { code: 'ER_NO_SUCH_TABLE' });
@@ -28,7 +32,12 @@ const db = { async query(sql, valori = []) {
     if (sql.includes('FROM evento e') && sql.includes('WHERE e.id = ?')) return [[{ id: Number(valori[0]), titolo: 'Principale', data_evento: '2027-01-01', latitudine: '45', longitudine: '9', immagine_evento: copertina }]];
     if (sql.includes('FROM evento e') && sql.includes('CURDATE()')) {
         const eventi = [{ id: 1, titolo: 'Principale', data_evento: '2027-01-01', latitudine: '45', longitudine: '9' }, { id: 2, titolo: 'Con ospite', data_evento: '2027-01-02', latitudine: null, longitudine: null }];
-        const selezionati = sql.includes('INNER JOIN utente_artista ua') ? eventi.filter(e => (e.id === 1 ? [1] : [1, 2]).some(id => follow.has(`${valori[0]}:${id}`))) : eventi;
+        const conFollow = sql.includes('INNER JOIN utente_artista ua');
+        const selezionati = eventi.filter(e => {
+            const artisti = e.id === 1 ? [1] : [1, 2];
+            return (!conFollow || artisti.some(id => follow.has(`${valori[0]}:${id}`))) &&
+                (!sql.includes('genere_ag.genere_id=?') || artisti.includes(valori[conFollow ? 1 : 0]));
+        });
         return [selezionati.map(e => ({ ...e, immagine_evento: copertina }))];
     }
     if (sql.includes('SELECT ea.evento_id')) return [[...valori[0].flatMap(id => (id === 1 ? [1] : [1, 2]).map(a => ({ evento_id: id, id: a, nome: `Artista ${a}`, immagine_url: immagineLocale })))]];
@@ -120,6 +129,52 @@ test('filtro SQL seguiti: nessun follow, artista secondario, nessun duplicato e 
     utente = 2; assert.deepEqual((await chiama('/eventi?filtro=seguiti')).dati, []);
     assert.equal((await chiama('/eventi?filtro=seguiti', 'GET', { Cookie: '' })).status, 401);
     assert.equal((await chiama('/eventi?filtro=tutti', 'GET', { Cookie: '' })).dati.length, 2);
+});
+
+test('elenco artisti seguiti: vuoto, immagini provider/locale, unfollow e nessuna cache condivisa', async () => {
+    assert.deepEqual((await chiama('/artisti/seguiti')).dati, []);
+    immagineLocale = 'https://locale.waveset.test/foto.jpg';
+    immagineCollegata = 'https://cdn-images.dzcdn.net/images/artist/test/250x250.jpg';
+    for (const id of [1, 2]) await chiama(`/artisti/${id}/segui`, 'PUT');
+    const r = await chiama('/artisti/seguiti');
+    assert.equal(r.status, 200); assert.equal(r.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(r.dati.map(a => a.id), [1, 2]);
+    assert.equal(r.dati[0].immagine_url, immagineCollegata);
+    assert.equal(r.dati[1].immagine_url, immagineLocale);
+    immagineCollegata = null;
+    assert.equal((await chiama('/artisti/seguiti')).dati[0].immagine_url, immagineLocale);
+    for (const id of [1, 2]) await chiama(`/artisti/${id}/segui`, 'DELETE');
+    assert.deepEqual((await chiama('/artisti/seguiti')).dati, []);
+});
+
+test('elenco seguiti isolato per sessione, ospite 401 e ADMIN 403', async () => {
+    await chiama('/artisti/1/segui', 'PUT');
+    utente = 2;
+    assert.deepEqual((await chiama('/artisti/seguiti?utente_id=1')).dati, []);
+    assert.equal((await chiama('/artisti/seguiti', 'GET', { Cookie: '' })).status, 401);
+    ruolo = 'ADMIN'; assert.equal((await chiama('/artisti/seguiti')).status, 403);
+    const lettura = query.find(q => q.sql.includes('FROM artista a') && q.sql.includes('INNER JOIN utente_artista ua'));
+    assert.deepEqual(lettura.valori, [2]);
+    assert(lettura.sql.includes('ORDER BY a.nome'));
+    assert(lettura.sql.includes('Nova Circuit')); // stessa esclusione demo del catalogo pubblico
+});
+
+test('elenco seguiti: errore DB controllato, dettagli interni assenti', async t => {
+    guasto = true;
+    const log = t.mock.method(console, 'error', () => {});
+    const r = await chiama('/artisti/seguiti');
+    assert.equal(r.status, 500); assert.deepEqual(r.dati, { messaggio: 'Errore interno del server' });
+    assert(!log.mock.calls.some(c => c.arguments.map(String).join(' ').includes('SQL con credenziali')));
+});
+
+test('seguiti e genere combinati: intersezione su qualunque artista lineup e parametri separati', async () => {
+    assert.deepEqual((await chiama('/eventi?filtro=seguiti&genere_id=2')).dati, []);
+    await chiama('/artisti/1/segui', 'PUT');
+    assert.deepEqual((await chiama('/eventi?filtro=seguiti&genere_id=2')).dati.map(e => e.id), [2]);
+    assert.deepEqual((await chiama('/eventi?filtro=seguiti&genere_id=1')).dati.map(e => e.id), [1, 2]);
+    const lettura = query.find(q => q.sql.includes('CURDATE()') && q.sql.includes('genere_ag.genere_id=?'));
+    assert.deepEqual(lettura.valori, [1, 2]);
+    assert.equal((await chiama('/eventi?filtro=seguiti&genere_id=2', 'GET', { Cookie: '' })).status, 401);
 });
 
 test('API pubbliche: immagine provider in artista/lista/lineup, fallback locale e nessun credito locale sulla foto provider', async () => {

@@ -15,7 +15,7 @@ const messaggi = {
     APPLE_TIMEOUT: 'Apple Music non ha risposto in tempo.',
     APPLE_DATI_INVALIDI: 'Apple Music ha restituito dati non validi.',
 };
-function creaRouteAdminArtisti(appleService, { services = {}, env = process.env } = {}) {
+function creaRouteAdminArtisti(appleService, { services = {}, env = process.env, db = require('../../config/database') } = {}) {
     const router = express.Router();
     const istanze = { ...services, ...(appleService ? { apple_music: appleService } : {}) };
     const service = provider => istanze[provider] ??= creaService({ provider });
@@ -30,6 +30,13 @@ function creaRouteAdminArtisti(appleService, { services = {}, env = process.env 
                     codice.startsWith('APPLE_') ? 'Impossibile completare la richiesta Apple Music. Riprovare più tardi.' : 'Impossibile completare la richiesta al provider artisti.') });
         }
     };
+    router.get('/', gestisci(async () => {
+        const [artisti] = await db.query(`SELECT a.id, a.nome, l.provider AS provider_collegato
+            FROM artista a
+            LEFT JOIN artista_provider_link l ON l.artista_id=a.id AND l.provider=?
+            ORDER BY a.nome, a.id`, [providerAttivo(env)]);
+        return artisti;
+    }));
     router.get('/provider', gestisci(() => ({ provider: providerAttivo(env) })));
     const valida = (req, res, next) => {
         res.set('Cache-Control', 'no-store');

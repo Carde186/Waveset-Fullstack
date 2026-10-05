@@ -16,7 +16,8 @@
         "eventi:ollama-schema": "node scripts/preparaOllama.js --applica",
         "eventi:valida": "node scripts/validaEventiOllama.js",
         "eventi:validazione-worker": "node scripts/validaEventiOllama.js --continuo",
-        "ollama:check": "node scripts/validaEventiOllama.js --check"
+        "ollama:check": "node scripts/validaEventiOllama.js --check",
+        "catalogo:classifica": "node scripts/classificaArtisti.js"
     },
     "dependencies": {
         "bcrypt": "^6.0.0",

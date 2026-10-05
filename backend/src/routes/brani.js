@@ -5,6 +5,7 @@ const { immaginiArtisti } = require('../artistiProvider/immagini');
 const { trovaLinkBranoApple } = require('../itunes/linkBrano');
 const formattaBrano = require('../utilita/formattaBrano');
 
+const { artistaPubblico } = require('../catalogo/pubblico');
 const router = express.Router();
 
 // Il feed "Novità" della Home (prima /brani/recenti) è in routes/novita.js.
@@ -19,7 +20,7 @@ async function dettaglioBrano(req, res) {
          FROM brano b
          INNER JOIN artista a ON a.id = b.artista_id
          LEFT JOIN album al ON al.id = b.album_id
-         WHERE b.id = ?`,
+         WHERE b.id = ? AND ${artistaPubblico()}`,
         [id],
     );
 
