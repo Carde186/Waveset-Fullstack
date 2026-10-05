@@ -52,6 +52,15 @@ export function simulaBackend(rotte: Record<string, Gestore | Response>) {
         // dei flussi precedenti. I test della sync dichiarano la propria risposta.
         const gestore =
             rotte[`${metodo} ${percorso}`] ??
+            // Fixture legacy senza copertine ufficiali né collegamento Deezer.
+            // Le nuove suite dichiarano risposte reali e verificano questi GET.
+            (metodo === 'GET' && percorso === '/api/catalogo/copertine' ? json(200, []) : undefined) ??
+            (metodo === 'GET' && percorso === '/api/generi' ? json(200, [
+                { id: 1, nome: 'Techno' }, { id: 2, nome: 'House' },
+                { id: 3, nome: 'Trance' }, { id: 4, nome: 'Drum and Bass' },
+            ]) : undefined) ??
+            (metodo === 'GET' && /^\/api\/artisti\/\d+\/discografia\?indice=0$/.test(percorso)
+                ? json(200, { disponibile: false, brani: [], pubblicazioni: [], prossimoIndice: null }) : undefined) ??
             (metodo === 'GET' && percorso === '/api/eventi?filtro=tutti'
                 ? json(200, [])
                 : undefined) ??

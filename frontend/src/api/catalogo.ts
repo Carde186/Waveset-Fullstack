@@ -39,6 +39,8 @@ export interface CreditoImmagine {
 }
 export interface Artista extends ArtistaSintetico {
     bio: string | null;
+    biografia: { it: string; en: string; fonteUrl: string | null } | null;
+    popolaritaDeezer: { fan: number; url: string | null; aggiornatoAt: string | null } | null;
     creditoImmagine: CreditoImmagine | null;
     generi: Genere[];
     brani: (BranoElenco & { albumId: number | null })[];
@@ -160,9 +162,18 @@ function brano(v: unknown): Brano {
 function artista(v: unknown): Artista {
     const r = oggetto(v);
     const credito = r.credito_immagine === null ? null : oggetto(r.credito_immagine);
+    const bio = r.biografia == null ? null : oggetto(r.biografia);
+    const popolarita = r.popolarita_deezer == null ? null : oggetto(r.popolarita_deezer);
+    if (popolarita !== null && (typeof popolarita.fan !== 'number' || !Number.isSafeInteger(popolarita.fan) || popolarita.fan < 0)) return inattesa();
     return {
         ...artistaElenco(r),
         bio: nullable(r.bio),
+        biografia: bio === null ? null : { it: testo(bio.it), en: testo(bio.en), fonteUrl: https(bio.fonteUrl) },
+        popolaritaDeezer: popolarita === null ? null : {
+            fan: popolarita.fan as number,
+            url: https(popolarita.url, 'www.deezer.com'),
+            aggiornatoAt: popolarita.aggiornato_at == null ? null : testo(popolarita.aggiornato_at),
+        },
         seguito: booleano(r.seguito),
         creditoImmagine:
             credito === null
@@ -237,6 +248,9 @@ export async function elencaArtisti(genereId?: number): Promise<ArtistaSintetico
         await richiesta(genereId === undefined ? '/artisti' : `/artisti?genere_id=${genereId}`),
         artistaElenco,
     );
+}
+export async function elencaArtistiSeguiti(): Promise<ArtistaSintetico[]> {
+    return lista(await richiesta('/artisti/seguiti'), artistaElenco);
 }
 export async function cercaCatalogo(query: string): Promise<RisultatiRicerca> {
     const q = query.trim();

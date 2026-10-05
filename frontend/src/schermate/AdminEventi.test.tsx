@@ -83,7 +83,7 @@ test('registro approvati/rifiutati/in attesa, confidenza/modello, senza azioni m
     });
     renderizzaApp('/admin/eventi');
     await screen.findByRole('heading', { name: evento.titolo });
-    for (const s of ['Approvato', 'Rifiutato', 'Da valutare', 'OLLAMA_TIMEOUT'])
+    for (const s of ['Approvato', 'Rifiutato', 'In elaborazione automatica', 'OLLAMA_TIMEOUT'])
         expect(screen.getByText(s)).toBeInTheDocument();
     expect(screen.getAllByText('95%')).toHaveLength(3);
     expect(
@@ -127,7 +127,7 @@ test('dettaglio con audit, rivalutazione 202 e CSRF, nessuna pubblicazione manua
     await screen.findByRole('heading', { name: evento.titolo });
     expect(screen.getByText('{"decisione":"approva"}')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Rivaluta con Ollama' }));
-    await screen.findByText('Da valutare');
+    await screen.findByText('In elaborazione automatica');
     expect(b.di('POST', '/api/admin/eventi/269/rivaluta')[0]?.intestazioni['X-CSRF-Token']).toBe(
         CSRF,
     );

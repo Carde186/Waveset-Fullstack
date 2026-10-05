@@ -15,6 +15,10 @@
     overflow-wrap: anywhere;
 }
 
+.azioniProfilo {
+    margin-top: 28px;
+}
+
 /* Le carte con il lime dell'anteprima Club («le tue playlist»). */
 .carte {
     display: grid;

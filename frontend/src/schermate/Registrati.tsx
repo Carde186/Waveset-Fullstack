@@ -1,11 +1,12 @@
 import motiviServer from '../localizzazione/errori-server.json';
 import { t, type Chiave } from '../localizzazione/lingua';
 import { useState, type SubmitEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { registrati } from '../api/autenticazione';
 import { ErroreApi } from '../api/client';
 import { messaggioRegistrazione, testoMessaggio, type Messaggio } from '../api/messaggi';
 import type { CampoRegistrazione } from '../api/tipi';
+import { ritornoDopoAccesso } from '../autenticazione/ritorno';
 import { Avviso } from '../componenti/Avviso';
 import { Bottone } from '../componenti/Bottone';
 import { CampoTesto } from '../componenti/CampoTesto';
@@ -37,6 +38,8 @@ function erroriDalServer(causa: ErroreApi): ErroriCampi {
 // schermata di accesso con l'email già compilata.
 export function Registrati() {
     const navigate = useNavigate();
+    const posizione = useLocation();
+    const ritorno = ritornoDopoAccesso(posizione.state);
     const [nome, impostaNome] = useState('');
     const [email, impostaEmail] = useState('');
     const [password, impostaPassword] = useState('');
@@ -71,7 +74,7 @@ export function Registrati() {
         try {
             const { utente } = await registrati(dati);
 
-            navigate('/accedi', { state: { registrato: true, email: utente.email } });
+            navigate('/accedi', { state: { registrato: true, email: utente.email, ...(ritorno ? { ritorno } : {}) } });
         } catch (causa) {
             if (causa instanceof ErroreApi && causa.stato === 400) {
                 const dalServer = erroriDalServer(causa);
@@ -138,7 +141,7 @@ export function Registrati() {
                             {invio ? t('registration.pending') : t('registration.submit')}
                         </Bottone>
                         <p className={stile.alternativa}>
-                            {t('text.alreadyHaveAnAccount')}{' '}<Link to="/accedi">{t('text.logIn')}</Link>
+                            {t('text.alreadyHaveAnAccount')}{' '}<Link to="/accedi" state={ritorno ? { ritorno } : undefined}>{t('text.logIn')}</Link>
                         </p>
                     </div>
                 </form>

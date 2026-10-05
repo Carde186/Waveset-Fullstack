@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router';
 import { ErroreApi } from '../api/client';
 import { messaggioAccesso, testoMessaggio, type Messaggio } from '../api/messaggi';
 import { useAutenticazione } from '../autenticazione/contesto';
+import { ritornoDopoAccesso } from '../autenticazione/ritorno';
 import { Avviso } from '../componenti/Avviso';
 import { Bottone } from '../componenti/Bottone';
 import { CampoTesto } from '../componenti/CampoTesto';
@@ -30,6 +31,7 @@ export function Accedi() {
     const { accedi, stato } = useAutenticazione();
     const posizione = useLocation();
     const dopoRegistrazione = leggiRegistrazione(posizione.state);
+    const ritorno = ritornoDopoAccesso(posizione.state);
 
     const [email, impostaEmail] = useState(dopoRegistrazione?.email ?? '');
     const [password, impostaPassword] = useState('');
@@ -60,7 +62,7 @@ export function Accedi() {
 
         try {
             // Se riesce, la sessione passa a «autenticato» e la schermata porta da sola
-            // all'area (vedi le guardie in App.tsx).
+            // al profilo artista richiesto oppure all'area (guardie in App.tsx).
             await accedi(emailPulita, password);
         } catch (causa) {
             impostaErrore(messaggioAccesso(causa));
@@ -115,7 +117,7 @@ export function Accedi() {
                             {invio ? t('login.pending') : t('login.submit')}
                         </Bottone>
                         <p className={stile.alternativa}>
-                            {t('text.donTHaveAnAccount')}{' '}<Link to="/registrati">{t('text.signUp')}</Link>
+                            {t('text.donTHaveAnAccount')}{' '}<Link to="/registrati" state={ritorno ? { ritorno } : undefined}>{t('text.signUp')}</Link>
                         </p>
                     </div>
                 </form>

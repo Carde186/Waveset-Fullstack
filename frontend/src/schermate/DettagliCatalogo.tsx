@@ -1,4 +1,4 @@
-import { t } from '../localizzazione/lingua';
+import { locale, t, useLingua } from '../localizzazione/lingua';
 import { useCallback, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import {
@@ -11,6 +11,7 @@ import {
 } from '../api/catalogo';
 import { ErroreApi } from '../api/client';
 import { useAutenticazione } from '../autenticazione/contesto';
+import { DiscografiaArtista } from '../componenti/DiscografiaArtista';
 import { FollowArtista } from '../componenti/FollowArtista';
 import { dataCatalogo, erroreCatalogo } from '../catalogo/formato';
 import { useRisorsa } from '../catalogo/useRisorsa';
@@ -102,6 +103,7 @@ function LinkMappato({
 
 export function DettaglioArtista() {
     const { stato } = useAutenticazione();
+    const lingua = useLingua();
     // Il flag seguito è personale: attendere l'identità evita un primo
     // caricamento anonimo seguito da una seconda richiesta autenticata.
     if (stato.tipo === 'caricamento') return <StatoCaricamento testo={t('text.checkingYourSession')} />;
@@ -134,16 +136,25 @@ export function DettaglioArtista() {
                     }>
                         <div className="occhiello">{t('text.artistLocalCatalog')}</div>
                         <h1 className="titolo">{artista.nome}</h1>
-                        <p className={stile.testo}>{artista.bio || t('catalog.bioUnavailable')}</p>
                         <div className={stile.metadati}>
                             {artista.generi.map((g) => (
                                 <span key={g.id}>{g.nome}</span>
                             ))}
                         </div>
+                        <section className={stile.biografia} aria-labelledby="biografia-artista">
+                            <h2 id="biografia-artista">{t('catalog.biography')}</h2>
+                            <p className={stile.testo}>{artista.bio || artista.biografia?.[lingua] || t('catalog.bioUnavailable')}</p>
+                            {artista.popolaritaDeezer ? <div className={stile.fan}>
+                                <strong>{new Intl.NumberFormat(locale()).format(artista.popolaritaDeezer.fan)}</strong>
+                                <span>{t('catalog.deezerFans')}</span>
+                                <p>{t('catalog.deezerFansNote')}</p>
+                                {artista.popolaritaDeezer.url ? <LinkEsterno url={artista.popolaritaDeezer.url}>{t('catalog.deezerProfileLink')}</LinkEsterno> : null}
+                            </div> : null}
+                        </section>
                         <FollowArtista key={artista.id} artista={artista} />
                         {stato.tipo === 'autenticato' && stato.utente.ruolo === 'ADMIN' ? <BottoneLink variante="contorno" to={`/admin/artisti/${artista.id}`}>{t('provider.manage')}</BottoneLink> : null}
                     </Vetrina>
-
+                    <DiscografiaArtista key={artista.id} id={artista.id}>
                     <div className="sezione">
                         <h2>{t('text.album')}</h2>
                     </div>
@@ -160,6 +171,7 @@ export function DettaglioArtista() {
                         <h2>{t('text.tracks')}</h2>
                     </div>
                     <ListaBrani brani={artista.brani} />
+                    </DiscografiaArtista>
                     <div className="sezione">
                         <h2>{t('text.upcomingEvents')}</h2>
                     </div>
@@ -193,7 +205,7 @@ export function DettaglioBrano() {
         <PaginaDettaglio tipo="brano" carica={leggiBrano}>
             {(brano) => (
                 <>
-                    <Vetrina>
+                    <Vetrina visuale={<ArteCatalogo immagine={brano.album?.copertinaUrl ?? null} descrizione={t('catalog.cover', { name: brano.titolo })} />}>
                         <div className="occhiello">{t('text.trackLocalCatalog')}</div>
                         <h1 className="titolo">{brano.titolo}</h1>
                         <p>
@@ -232,7 +244,7 @@ export function DettaglioAlbum() {
         <PaginaDettaglio tipo="album" carica={leggiAlbum}>
             {(album) => (
                 <>
-                    <Vetrina>
+                    <Vetrina visuale={<ArteCatalogo immagine={album.copertinaUrl} descrizione={t('catalog.cover', { name: album.titolo })} />}>
                         <div className="occhiello">{t('text.albumLocalCatalog')}</div>
                         <h1 className="titolo">{album.titolo}</h1>
                         <p>
@@ -240,12 +252,6 @@ export function DettaglioAlbum() {
                         </p>
                         <p>{dataCatalogo(album.dataPubblicazione)}</p>
                     </Vetrina>
-                    <div className={stile.immagineDettaglio}>
-                        <ArteCatalogo
-                            immagine={album.copertinaUrl}
-                            descrizione={t('catalog.cover', { name: album.titolo })}
-                        />
-                    </div>
                     <div className="sezione">
                         <h2>{t('text.tracks')}</h2>
                     </div>

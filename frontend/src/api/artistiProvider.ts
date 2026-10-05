@@ -16,6 +16,9 @@ export interface LinkProvider extends ProfiloProvider { versione: number; ticket
 export interface GestioneArtistaProvider {
     provider: Provider; artista: { id: number; nome: string }; collegamento: LinkProvider | null;
 }
+export interface ArtistaGestione {
+    id: number; nome: string; providerCollegato: Provider | null;
+}
 export const nomeProvider = (p: Provider) => p === 'deezer' ? 'Deezer' : 'Apple Music';
 function oggetto(v: unknown): Record<string, unknown> {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw new ErroreApi(200);
@@ -64,6 +67,16 @@ function percorso(id: number, p?: Provider): string {
 }
 export async function leggiProvider(): Promise<Provider> {
     return provider(oggetto(await richiesta('/admin/artisti/provider')).provider);
+}
+export async function elencaGestioneArtisti(): Promise<ArtistaGestione[]> {
+    const risposta = await richiesta('/admin/artisti');
+    if (!Array.isArray(risposta)) throw new ErroreApi(200);
+    return risposta.map(v => {
+        const a = oggetto(v);
+        if (!Number.isSafeInteger(a.id) || Number(a.id) <= 0) throw new ErroreApi(200);
+        return { id: a.id as number, nome: testo(a.nome),
+            providerCollegato: a.provider_collegato === null ? null : provider(a.provider_collegato) };
+    });
 }
 export async function leggiGestioneProvider(id: number): Promise<GestioneArtistaProvider> {
     const r = oggetto(await richiesta(percorso(id))), a = oggetto(r.artista), p = provider(r.provider);

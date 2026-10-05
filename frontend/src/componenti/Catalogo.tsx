@@ -9,7 +9,7 @@ function Decorazione() {
     return (
         <>
             <span className={stile.anello} aria-hidden="true">
-                ◌
+                ♫
             </span>
             <span className={stile.didascalia}>{t('text.clubArtwork')}</span>
         </>

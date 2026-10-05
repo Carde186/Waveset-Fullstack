@@ -1,0 +1,6 @@
+.lista { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; list-style: none; padding: 0; }
+.lista > li { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--linea); background: var(--pannello); }
+.azioni { padding: 16px; margin-top: auto; }
+.azioni button { width: 100%; white-space: normal; }
+@media (max-width: 970px) { .lista { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 650px) { .lista { grid-template-columns: minmax(0, 1fr); } }

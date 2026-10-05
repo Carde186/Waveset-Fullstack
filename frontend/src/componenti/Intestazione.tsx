@@ -23,6 +23,7 @@ export function Intestazione() {
                         {t('text.explore')}</NavLink>
                     <NavLink to="/eventi" className={classeVoce}>
                         {t('text.events')}</NavLink>
+                    {stato.tipo === 'autenticato' && stato.utente.ruolo === 'USER' ? <NavLink to="/artisti-seguiti" className={classeVoce}>{t('follow.pageTitle')}</NavLink> : null}
                 </nav>
             </div>
             <nav className={stile.azioniAccount} aria-label={t('text.yourAccount')}>

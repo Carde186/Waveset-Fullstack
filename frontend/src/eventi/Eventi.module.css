@@ -24,3 +24,6 @@
     .pannelloMappa, .carta { padding: 18px; }
     .mappa { height: 360px; }
 }
+
+.notaFiltro { color: var(--tenue); line-height: 1.6; }
+.notaFiltro a { color: var(--lime); }

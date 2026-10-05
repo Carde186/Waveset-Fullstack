@@ -4,7 +4,7 @@ import { ErroreApi } from '../api/client';
 import { useAutenticazione } from '../autenticazione/contesto';
 import { t, type Chiave } from '../localizzazione/lingua';
 import { Avviso } from './Avviso';
-import { Bottone } from './Bottone';
+import { Bottone, BottoneLink } from './Bottone';
 
 export function FollowArtista({ artista }: { artista: Artista }) {
     const { stato, riprova } = useAutenticazione();
@@ -42,9 +42,6 @@ export function FollowArtista({ artista }: { artista: Artista }) {
         <>
             {puoSeguire ? (
                 <>
-                    <p role="status" aria-live="polite">
-                        {t(seguito ? 'follow.following' : 'follow.notFollowing')}
-                    </p>
                     <Bottone
                         variante={seguito ? 'contorno' : 'primario'}
                         aria-pressed={seguito}
@@ -60,7 +57,7 @@ export function FollowArtista({ artista }: { artista: Artista }) {
                         )}
                     </Bottone>
                 </>
-            ) : null}
+            ) : stato.tipo === 'anonimo' ? <BottoneLink to="/accedi" state={{ ritorno: `/artisti/${artista.id}` }}>{t('follow.loginToFollow')}</BottoneLink> : null}
             {errore ? <Avviso tipo="errore">{t(errore)}</Avviso> : null}
         </>
     );

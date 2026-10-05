@@ -100,3 +100,11 @@ test('copertina normalizzata separatamente dalle foto lineup; legacy e URL non v
         expect(senza.immagineUrl).toBeNull(); expect(senza.immagine).toBeNull();
     }
 });
+
+
+test('genere: parametro pubblico per ID, ID errati non fanno richieste', async () => {
+    const backend = simulaBackend({ 'GET /api/eventi?filtro=tutti&genere_id=2': json(200, []) });
+    expect(await elencaEventi('tutti', 2)).toEqual([]);
+    for (const n of [0, -1, 1.5, 2147483648, NaN]) await expect(elencaEventi('tutti', n)).rejects.toMatchObject({ stato: 400 });
+    expect(backend.chiamate).toHaveLength(1);
+});

@@ -26,11 +26,47 @@ test('ospite e USER: nessuna chiamata ADMIN su lista o dettaglio', async () => {
     renderizzaApp('/admin/artisti/5'); await screen.findByRole('heading', { name: 'Accesso riservato agli ADMIN.' });
     expect(user.chiamate).toHaveLength(1); expect(screen.queryByRole('link', { name: 'Gestione artisti' })).not.toBeInTheDocument();
 });
-test('lista: solo artisti locali, navigazione ADMIN e link al dettaglio', async () => {
-    simulaBackend({ ...auth, 'GET /api/admin/artisti/provider': json(200, { provider: 'apple_music' }), 'GET /api/artisti': json(200, [{ ...artista, immagine_url: null }]) });
+test('lista: tutti gli artisti locali anche senza provider, navigazione ADMIN e link al dettaglio', async () => {
+    const backend = simulaBackend({ ...auth, 'GET /api/admin/artisti/provider': json(200, { provider: 'apple_music' }),
+        'GET /api/admin/artisti': json(200, [{ ...artista, provider_collegato: null }]) });
     renderizzaApp('/admin/artisti');
     expect(await screen.findByRole('link', { name: 'Artista locale ↗' })).toHaveAttribute('href', '/admin/artisti/5');
     expect(screen.getByRole('link', { name: 'Gestione artisti' })).toHaveAttribute('href', '/admin/artisti');
+    expect(screen.getByText('Nessun profilo collegato al provider attivo.')).toBeInTheDocument();
+    expect(backend.di('GET', '/api/artisti')).toHaveLength(0);
+});
+test('lista di 37 artisti: 4 collegati e 33 senza provider, conteggio e IT/EN senza nuove chiamate', async () => {
+    const nomi = ['Martin Garrix', 'Alesso', 'Fred again', 'BUNT.', 'ILLENIUM', 'FISHER', 'Kaskade',
+        'Matisse & Sadko', 'Hardwell', 'Steve Aoki', 'Charlotte de Witte', 'Amelie Lens', 'Adam Beyer',
+        'Nina Kraviz', 'Armin van Buuren', 'Black Coffee', 'Peggy Gou', 'Chris Lake', 'John Summit',
+        'David Guetta', 'Above & Beyond', 'Paul van Dyk', 'Aly & Fila', 'Gareth Emery', 'Pendulum',
+        'Andy C', 'Wilkinson', 'Metrik', 'Tale Of Us', 'Maceo Plex', 'Stephan Bodzin', 'Tiësto', 'Sub Focus'];
+    const artisti = [...Array.from({ length: 4 }, (_, i) => ({ id: i + 1, nome: `Demo ${i + 1}`, provider_collegato: 'deezer' })),
+        ...nomi.map((nome, i) => ({ id: i + 5, nome, provider_collegato: null }))];
+    const backend = simulaBackend({ ...auth, 'GET /api/admin/artisti/provider': json(200, { provider: 'deezer' }),
+        'GET /api/admin/artisti': json(200, artisti) });
+    renderizzaApp('/admin/artisti');
+    await screen.findByText('Artisti nel catalogo: 37');
+    const lista = screen.getByRole('list', { name: 'Gestione artisti' });
+    expect(within(lista).getAllByRole('listitem')).toHaveLength(37);
+    expect(within(lista).getAllByText('Collegato a Deezer')).toHaveLength(4);
+    expect(within(lista).getAllByText('Nessun profilo collegato al provider attivo.')).toHaveLength(33);
+    for (const a of artisti) expect(within(lista).getByRole('link', { name: `${a.nome} ↗` })).toHaveAttribute('href', `/admin/artisti/${a.id}`);
+    await userEvent.setup().selectOptions(screen.getByRole('combobox', { name: 'Lingua' }), 'en');
+    expect(screen.getByText('Artists in the catalog: 37')).toBeInTheDocument();
+    expect(screen.getAllByText('No profile linked to the active provider.')).toHaveLength(33);
+    expect(backend.di('GET', '/api/admin/artisti')).toHaveLength(1);
+});
+test('lista ADMIN: vuoto ed errore con retry, nessun ripiego sul catalogo pubblico', async () => {
+    let n = 0;
+    const backend = simulaBackend({ ...auth, 'GET /api/admin/artisti/provider': json(200, { provider: 'deezer' }),
+        'GET /api/admin/artisti': () => ++n === 1 ? json(500, {}) : json(200, []) });
+    renderizzaApp('/admin/artisti');
+    await screen.findByText('Impossibile completare la richiesta al catalogo. Riprova più tardi.');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Riprova ↗' }));
+    await screen.findByText('Nessun artista locale.');
+    expect(backend.di('GET', '/api/admin/artisti')).toHaveLength(2);
+    expect(backend.di('GET', '/api/artisti')).toHaveLength(0);
 });
 test('ricerca loading, foto/nome/generi/link, selezione, conferma esplicita e salvataggio CSRF', async () => {
     const sospesa = differita<Response>();

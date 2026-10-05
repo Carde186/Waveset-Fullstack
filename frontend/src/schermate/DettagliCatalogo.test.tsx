@@ -303,3 +303,32 @@ test('ritratto artista nel hero accanto al nome, presente/errore/assenza condivi
     expect(hero).toContainElement(riquadro);
     expect(screen.queryByRole('img', { name: 'Foto di Nova Circuit' })).not.toBeInTheDocument();
 });
+
+
+test('biografia e fan Deezer dentro il hero con il ritratto, cambio IT/EN senza nuove richieste', async () => {
+    const backend = apri('/artisti/1', { 'GET /api/artisti/1': json(200, { ...ARTISTA, bio: null,
+        biografia: { it: 'Biografia verificata italiana.', en: 'Verified English biography.', fonteUrl: 'https://example.org/artista' },
+        popolarita_deezer: { fan: 12345, url: 'https://www.deezer.com/artist/3951', aggiornato_at: '2026-10-05T10:00:00Z' } }) });
+    await titolo('Nova Circuit');
+    const sezione = screen.getByRole('region', { name: 'Biografia' });
+    expect(within(sezione).getByText('Biografia verificata italiana.')).toBeInTheDocument();
+    expect(within(sezione).getByText('12.345')).toBeInTheDocument();
+    expect(within(sezione).getByText('Fan su Deezer')).toBeInTheDocument();
+    expect(within(sezione).queryByRole('link', { name: /Fonte della biografia/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Dietro la musica')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Nova Circuit' }).closest('[class*="vetrina"]')).toContainElement(sezione);
+    await userEvent.setup().selectOptions(screen.getByRole('combobox', { name: 'Lingua' }), 'en');
+    expect(screen.getByText('Verified English biography.')).toBeInTheDocument();
+    expect(screen.getByText('12,345')).toBeInTheDocument();
+    expect(screen.getByText('Fans on Deezer')).toBeInTheDocument();
+    expect(backend.di('GET', '/api/artisti/1')).toHaveLength(1);
+});
+test('bio curata prevale, fan assenti non diventano zero e zero reale viene mostrato', async () => {
+    apri('/artisti/1', { 'GET /api/artisti/1': json(200, { ...ARTISTA,
+        biografia: { it: 'Fallback', en: 'Fallback', fonteUrl: null },
+        popolarita_deezer: { fan: 0, url: null, aggiornato_at: null } }) });
+    await titolo('Nova Circuit');
+    expect(screen.getByText(ARTISTA.bio)).toBeInTheDocument();
+    expect(screen.queryByText('Fallback')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Biografia' })).getByText('0')).toBeInTheDocument();
+});

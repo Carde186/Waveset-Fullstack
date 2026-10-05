@@ -112,9 +112,12 @@ function metadatiImmagine(v: unknown, url: string | null): ImmagineEvento | null
         typeof r.height !== 'number' || !Number.isInteger(r.height) || r.height < 1 || typeof r.fallback !== 'boolean') return null;
     return { url, width: r.width, height: r.height, ratio: typeof r.ratio === 'string' ? r.ratio : null, fallback: r.fallback, source: 'ticketmaster' };
 }
-export async function elencaEventi(filtro: FiltroEventi = 'tutti'): Promise<Evento[]> {
+export async function elencaEventi(filtro: FiltroEventi = 'tutti', genereId?: number): Promise<Evento[]> {
     if (filtro !== 'tutti' && filtro !== 'seguiti') throw new ErroreApi(400);
-    const dati = await richiesta(`/eventi?filtro=${filtro}`);
+    if (genereId !== undefined && (!Number.isSafeInteger(genereId) || genereId <= 0 || genereId > 2147483647)) throw new ErroreApi(400);
+    const parametri = new URLSearchParams({ filtro });
+    if (genereId !== undefined) parametri.set('genere_id', String(genereId));
+    const dati = await richiesta(`/eventi?${parametri}`);
     if (!Array.isArray(dati)) return inattesa();
     const eventi = dati.map(normalizzaEvento);
     if (new Set(eventi.map((e) => e.id)).size !== eventi.length) return inattesa();

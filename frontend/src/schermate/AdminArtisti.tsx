@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, type SubmitEvent } from 'react';
 import { Link, useParams } from 'react-router';
-import { cercaProvider, collegaProvider, leggiGestioneProvider, sincronizzaProvider, ricontrollaTicketmaster, leggiProvider, nomeProvider, type GestioneArtistaProvider, type ProfiloProvider } from '../api/artistiProvider';
-import { elencaArtisti, idDaPercorso } from '../api/catalogo';
+import { cercaProvider, collegaProvider, elencaGestioneArtisti, leggiGestioneProvider, sincronizzaProvider, ricontrollaTicketmaster, leggiProvider, nomeProvider, type GestioneArtistaProvider, type ProfiloProvider } from '../api/artistiProvider';
+import { idDaPercorso } from '../api/catalogo';
 import { ErroreApi } from '../api/client';
 import { useRisorsa, type StatoRisorsa } from '../catalogo/useRisorsa';
 import { dataControllo } from '../catalogo/formato';
@@ -46,14 +46,20 @@ function Profilo({ dati }: { dati: ProfiloProvider }) {
     </div>;
 }
 export function AdminArtisti() {
-    const carica = useCallback(async () => ({ artisti: await elencaArtisti(), provider: await leggiProvider() }), []);
+    const carica = useCallback(async () => ({ artisti: await elencaGestioneArtisti(), provider: await leggiProvider() }), []);
     const { stato, riprova } = useRisorsa('admin-artisti', carica);
     return <div className={stile.pagina}><Vetrina><div className="occhiello">{t('provider.eyebrow')}</div>
-        <h1 className="titolo">{t('provider.title')}</h1><p>{t('provider.intro')}</p></Vetrina>
+        <h1 className={`titolo ${stile.titolo}`} aria-label={t('provider.title')}><span>{t('provider.titleFirst')}</span><span>{t('provider.titleSecond')}</span></h1><p>{t('provider.intro')}</p></Vetrina>
         {stato.tipo === 'caricamento' ? <StatoCaricamento testo={t('provider.loadingArtists')} /> :
             stato.tipo === 'errore' ? <StatoErrore titolo={t('provider.title')} messaggio={errore(stato.causa)} suRiprova={riprova} /> :
             stato.dati.artisti.length === 0 ? <StatoVuoto occhiello={t('provider.eyebrow')} titolo={t('provider.noLocalArtists')} messaggio={t('provider.localOnly')} /> :
-            <><p>{t('provider.active', { provider: nomeProvider(stato.dati.provider) })}</p><ul className={stile.artisti}>{stato.dati.artisti.map(a => <li key={a.id}><Link to={`/admin/artisti/${a.id}`}>{a.nome} ↗</Link></li>)}</ul></>}
+            <><p>{t('provider.active', { provider: nomeProvider(stato.dati.provider) })}</p>
+                <p>{t('provider.artistCount', { count: stato.dati.artisti.length })}</p>
+                <ul className={stile.artisti} aria-label={t('provider.nav')}>{stato.dati.artisti.map(a => <li key={a.id}>
+                    <Link to={`/admin/artisti/${a.id}`}>{a.nome} ↗</Link>
+                    <span className={stile.statoCollegamento}>{a.providerCollegato
+                        ? t('provider.linkBadge', { provider: nomeProvider(a.providerCollegato) }) : t('provider.noLink')}</span>
+                </li>)}</ul></>}
     </div>;
 }
 export function DettaglioAdminArtista() {

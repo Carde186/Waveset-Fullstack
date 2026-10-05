@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test } from 'vitest';
 import { leggiCsrf } from '../api/client';
@@ -51,7 +51,7 @@ describe('schermata di registrazione', () => {
         expect(screen.getByLabelText('Email')).toBeInTheDocument();
         expect(screen.getByLabelText('Password')).toHaveAttribute('autocomplete', 'new-password');
         expect(screen.getByLabelText('Password')).toHaveAccessibleDescription(
-            'Almeno 12 caratteri, al massimo 72 byte.',
+            'Almeno 12 caratteri.',
         );
         // Il collegamento nel modulo (la barra ha un altro «Accedi»).
         expect(
@@ -111,7 +111,8 @@ describe('schermata di registrazione', () => {
 
         await compila(utente, { nome: 'A', email: 'x', password: 'corta' });
 
-        expect(await screen.findByText('Almeno 12 caratteri.')).toBeInTheDocument();
+        await waitFor(() => expect(screen.getByLabelText('Password')).toBeInvalid());
+        expect(screen.getAllByText('Almeno 12 caratteri.')).toHaveLength(2);
         expect(screen.getByText('Formato non valido.')).toBeInTheDocument();
         expect(screen.getByText('Obbligatorio.')).toBeInTheDocument();
         expect(screen.getByLabelText('Password')).toBeInvalid();

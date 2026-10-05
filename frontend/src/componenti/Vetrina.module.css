@@ -1,5 +1,4 @@
-/* Blocco «in evidenza» dell'anteprima Club: testo su verde profondo e, accanto,
-   l'arte astratta con il lime ben presente. */
+/* Hero Club: testo su verde profondo e copertine ufficiali affiancate. */
 .vetrina {
     display: grid;
     grid-template-columns: 1.15fr 0.85fr;
@@ -17,13 +16,6 @@
 .copia p {
     color: var(--vetrina-testo);
     line-height: 1.55;
-}
-
-.arte {
-    min-height: 260px;
-    background: var(--arte);
-    position: relative;
-    overflow: hidden;
 }
 
 .visuale {
@@ -46,23 +38,23 @@
     overflow: hidden;
 }
 
-.arte::after {
-    content: '◌';
-    position: absolute;
-    right: 15%;
-    top: -45px;
-    font-size: 350px;
-    color: var(--anello);
-    line-height: 1;
-}
+/* Copertine ufficiali: una principale e due dettagli, mai ritratti artista. */
+.copertine { position: relative; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; min-width: 0; min-height: 260px; background: var(--arte); }
+.copertine > img { width: 100%; height: 100%; min-height: 0; min-width: 0; object-fit: cover; object-position: center; position: absolute; }
+.copertine > img:first-child { inset: 0; width: 64%; }
+.copertine > img:nth-child(2) { top: 0; right: 0; width: 35%; height: 49.5%; }
+.copertine > img:nth-child(3) { bottom: 0; right: 0; width: 35%; height: 49.5%; }
+.copertine > img:only-child { width: 100%; }
+.coverAssente { display: grid; place-items: center; min-height: 160px; background: var(--arte); color: var(--lime); font-size: 5rem; font-weight: 900; grid-column: 1 / -1; grid-row: 1 / -1; }
 
 @media (max-width: 650px) {
     .vetrina {
         grid-template-columns: 1fr;
     }
 
-    .arte {
-        min-height: 170px;
+    .copertine {
+        min-height: 0;
+        aspect-ratio: 16 / 9;
     }
 
     .copia {

@@ -29,6 +29,8 @@ describe('area autenticata essenziale', () => {
 
         expect(screen.getByText(ALICE.email)).toBeInTheDocument();
         expect(screen.getByText('Ruolo: USER')).toBeInTheDocument();
+        expect(screen.queryByText(/Progetto didattico/)).not.toBeInTheDocument();
+        expect(within(screen.getByRole('main')).getByRole('link', { name: 'Artisti seguiti' })).toHaveAttribute('href', '/artisti-seguiti');
         expect(screen.getByRole('button', { name: /Esci ↗/ })).toBeInTheDocument();
         expect(
             screen.getByRole('button', { name: 'Esci da tutti i dispositivi' }),

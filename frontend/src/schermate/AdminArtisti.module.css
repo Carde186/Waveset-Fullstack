@@ -2,7 +2,8 @@
 .pannello { background: var(--pannello); border: 1px solid var(--linea); border-radius: 16px; padding: 24px; min-width: 0; }
 .pannello h2 { margin-top: 0; }
 .artisti { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); padding: 0; gap: 16px; list-style: none; }
-.artisti li { border: 1px solid var(--linea); background: var(--pannello); padding: 24px; border-radius: 12px; }
+.artisti li { border: 1px solid var(--linea); background: var(--pannello); padding: 24px; border-radius: 12px; min-width: 0; overflow-wrap: anywhere; }
+.statoCollegamento { display: block; margin-top: 12px; color: var(--tenue); font-size: 0.875rem; }
 .ricerca { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; margin-bottom: 20px; }
 .ricerca label { grid-column: 1 / -1; }
 .ricerca input { background: var(--campo-sfondo); border: 1px solid var(--campo-bordo); color: var(--bianco); border-radius: 8px; padding: 12px; min-width: 0; font: inherit; }
@@ -26,3 +27,6 @@
 
 .presenza { margin-top: 24px; border-top: 1px solid var(--linea); padding-top: 20px; overflow-wrap: anywhere; }
 .presenza strong { display: inline-block; padding: 8px 12px; background: var(--arte); border: 1px solid var(--linea); border-radius: 8px; }
+
+.pagina .titolo { font-size: clamp(1.5rem, 4vw, 3rem); line-height: 1.05; overflow-wrap: normal; word-break: normal; }
+.titolo span { display: block; white-space: nowrap; }

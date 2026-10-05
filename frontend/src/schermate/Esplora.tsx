@@ -114,9 +114,9 @@ function ProssimiEventi() {
         return <StatoErrore messaggio={erroreCatalogo(stato.causa)} suRiprova={riprova} />;
     if (stato.tipo !== 'pronto' || !stato.dati.length) return null;
     return (
-        <section aria-label={t('ollama.exploreEvents')}>
+        <section className={stile.sezioneEventi} aria-label={t('ollama.exploreEvents')}>
             <div className="sezione">
-                <h2>{t('ollama.exploreEvents')}</h2>
+                <div><span className={stile.etichettaSezione}>{t('explore.live')}</span><h2>{t('ollama.exploreEvents')}</h2></div>
             </div>
             <div className={stile.griglia}>
                 {stato.dati.slice(0, 6).map((e) => (
@@ -175,9 +175,9 @@ export function Esplora() {
                 ) : null}
             </section>
 
-            <section aria-label={t('text.artistsByGenre')}>
+            <section className={stile.sezioneArtisti} aria-label={t('text.artistsByGenre')}>
                 <div className="sezione">
-                    <h2>{t('text.artistsByGenre')}</h2>
+                    <div><span className={stile.etichettaSezione}>{t('explore.music')}</span><h2>{t('text.artistsByGenre')}</h2></div>
                 </div>
                 <p className="introduzione">{t('text.theGenreOnlyFiltersThisList')}</p>
                 {generi.stato.tipo === 'caricamento' ? (

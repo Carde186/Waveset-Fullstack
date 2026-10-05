@@ -7,6 +7,7 @@ import { differita, json, renderizzaApp, SESSIONE_NON_VALIDA, sessioneDi, simula
 const UNO = { id: 1, titolo: 'Notte Elettrica', data_evento: '2027-02-13', ora_evento: '23:30:00',
     luogo: 'Arca', citta: 'Milano', latitudine: 45.47, longitudine: 9.18,
     lineup: [{ id: 4, nome: 'Nova Circuit', immagine_url: null }] };
+const nomeFiltro = (filtro: string) => filtro.includes('genere_id=1') ? 'Techno' : filtro.includes('genere_id=2') ? 'House' : filtro.startsWith('seguiti') ? 'Artisti seguiti' : 'Tutti';
 const DUE = { ...UNO, id: 2, titolo: 'Alba', latitudine: null, longitudine: null, lineup: [] };
 
 test.each(['/eventi', '/eventi/1'])('foto lineup su %s: presente, errore e segnaposto', async percorso => {
@@ -49,8 +50,10 @@ function sdkSimulato() {
 }
 
 test.each([
-    ['tutti', null], ['seguiti', null],
-    ['tutti', 'https://catalogo.waveset.test/nova.jpg'], ['seguiti', 'https://catalogo.waveset.test/nova.jpg'],
+    ['tutti', null], ['tutti&genere_id=1', null],
+    ['tutti', 'https://catalogo.waveset.test/nova.jpg'], ['tutti&genere_id=1', 'https://catalogo.waveset.test/nova.jpg'],
+    ['seguiti', null], ['seguiti&genere_id=1', null],
+    ['seguiti', 'https://catalogo.waveset.test/nova.jpg'], ['seguiti&genere_id=1', 'https://catalogo.waveset.test/nova.jpg'],
 ] as const)('marker custom (%s, foto %s): lista sincronizzata, click e ritorno conservano evento e filtro', async (filtro, foto) => {
     vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'chiave-simulata');
     vi.stubEnv('VITE_GOOGLE_MAPS_MAP_ID', 'id-simulato');
@@ -82,7 +85,8 @@ test.each([
         const ritorno = screen.getByRole('link', { name: '← Eventi' });
         expect(ritorno).toHaveAttribute('href', `/eventi?filtro=${filtro}`);
         await userEvent.setup().click(ritorno);
-        await waitFor(() => expect(screen.getByRole('button', { name: filtro === 'seguiti' ? 'Artisti che seguo' : 'Tutti' })).toHaveAttribute('aria-pressed', 'true'));
+        await waitFor(() => expect(screen.getByRole('button', { name: nomeFiltro(filtro) })).toHaveAttribute('aria-pressed', 'true'));
+        expect(screen.getByRole('button', { name: 'Artisti seguiti' })).toHaveAttribute('aria-pressed', String(filtro.startsWith('seguiti')));
         expect(backend.di('GET', '/api/eventi/2')).toHaveLength(1);
         expect(backend.chiamate.every((c) => c.metodo === 'GET')).toBe(true);
         vista.unmount();
@@ -103,27 +107,66 @@ test('ospite: lista, lineup locale, coordinate mancanti e dettaglio pubblico', a
     expect(within(lista).getByRole('link', { name: /Nova Circuit/ })).toHaveAttribute('href', '/artisti/4');
     expect(within(lista).getByText('Posizione sulla mappa non disponibile.')).toBeInTheDocument();
     expect(screen.getByText(/La mappa non è configurata/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Artisti che seguo' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Artisti seguiti' })).toBeDisabled();
     await userEvent.setup().click(within(lista).getByRole('link', { name: /Notte Elettrica/ }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Notte Elettrica' })).toBeInTheDocument();
     expect(backend.di('GET', '/api/eventi/1')).toHaveLength(1);
 });
 
-test('filtro seguiti nell’URL: autenticato, vuoto, ritorno a tutti', async () => {
+test('genere nell’URL: pubblico, vuoto, ritorno a tutti', async () => {
     const backend = simulaBackend({
-        'GET /api/auth/io': json(200, sessioneDi()),
-        'GET /api/eventi?filtro=seguiti': json(200, []),
+        'GET /api/auth/io': SESSIONE_NON_VALIDA(),
+        'GET /api/eventi?filtro=tutti&genere_id=1': json(200, []),
         'GET /api/eventi?filtro=tutti': json(200, [UNO]),
     });
-    renderizzaApp('/eventi?filtro=seguiti');
+    renderizzaApp('/eventi?filtro=tutti&genere_id=1');
     expect(await screen.findByRole('heading', { name: 'Nessun evento in arrivo.' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Artisti che seguo' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Techno' })).toHaveAttribute('aria-pressed', 'true');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Tutti' }));
     expect(await screen.findByText('1 evento')).toBeInTheDocument();
     expect(backend.di('GET', '/api/eventi?filtro=tutti')).toHaveLength(1);
 });
 
-test.each(['tutti', 'seguiti'] as const)('elenco → dettaglio → elenco conserva il filtro %s', async (filtro) => {
+test('seguiti combinabile con genere: attiva/disattiva senza perdere il genere, Tutti azzera entrambi', async () => {
+    const backend = simulaBackend({ 'GET /api/auth/io': json(200, sessioneDi()),
+        'GET /api/eventi?filtro=tutti&genere_id=1': json(200, [UNO, DUE]),
+        'GET /api/eventi?filtro=seguiti&genere_id=1': json(200, [UNO]),
+        'GET /api/eventi?filtro=seguiti&genere_id=2': json(200, []),
+        'GET /api/eventi?filtro=tutti&genere_id=2': json(200, [DUE]),
+        'GET /api/eventi?filtro=tutti': json(200, [UNO, DUE]) });
+    renderizzaApp('/eventi?filtro=tutti&genere_id=1'); const user = userEvent.setup();
+    await screen.findByText('2 eventi');
+    await user.click(screen.getByRole('button', { name: 'Artisti seguiti' }));
+    expect(await screen.findByText('1 evento')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Techno' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Artisti seguiti' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'House' }));
+    await screen.findByRole('heading', { name: 'Nessun evento in arrivo.' });
+    expect(screen.getByText(/Non ci sono eventi pubblicati in arrivo per gli artisti che segui/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Artisti seguiti' }));
+    expect(await screen.findByRole('link', { name: /Alba/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'House' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'Tutti' }));
+    await screen.findByText('2 eventi');
+    expect(screen.getByRole('button', { name: 'House' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Artisti seguiti' })).toHaveAttribute('aria-pressed', 'false');
+    expect(backend.di('GET', '/api/eventi?filtro=seguiti&genere_id=1')).toHaveLength(1);
+});
+
+test('filtro seguiti attende identità e rimuove i dati personali dopo sessione scaduta', async () => {
+    const attesa = differita<Response>(); let controlli = 0;
+    const backend = simulaBackend({ 'GET /api/auth/io': () => ++controlli === 1 ? attesa.promessa : SESSIONE_NON_VALIDA(),
+        'GET /api/eventi?filtro=seguiti': json(401, {}) });
+    renderizzaApp('/eventi?filtro=seguiti');
+    await screen.findByText('Controllo la sessione…');
+    expect(backend.di('GET', '/api/eventi?filtro=seguiti')).toHaveLength(0);
+    await act(async () => attesa.risolvi(json(200, sessioneDi())));
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Verifica la sessione' }));
+    expect(await screen.findByRole('heading', { name: 'Gli eventi dei tuoi artisti.' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Artisti seguiti' })).toBeDisabled();
+});
+
+test.each(['tutti', 'tutti&genere_id=1', 'seguiti', 'seguiti&genere_id=1'] as const)('elenco → dettaglio → elenco conserva il filtro %s', async (filtro) => {
     const backend = simulaBackend({
         'GET /api/auth/io': json(200, sessioneDi()),
         [`GET /api/eventi?filtro=${filtro}`]: json(200, [UNO]),
@@ -139,31 +182,35 @@ test.each(['tutti', 'seguiti'] as const)('elenco → dettaglio → elenco conser
     expect(ritorno).toHaveAttribute('href', `/eventi?filtro=${filtro}`);
     await userEvent.setup().click(ritorno);
     expect(await screen.findByRole('region', { name: 'Elenco degli eventi' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: filtro === 'seguiti' ? 'Artisti che seguo' : 'Tutti' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: nomeFiltro(filtro) })).toHaveAttribute('aria-pressed', 'true');
     expect(backend.di('GET', '/api/eventi/1')).toHaveLength(1);
     expect(backend.di('GET', `/api/eventi?filtro=${filtro}`)).toHaveLength(2);
     expect(backend.chiamate.every((c) => c.metodo === 'GET')).toBe(true);
 });
 
-test('ospite su seguiti: accesso richiesto, nessuna richiesta eventi', async () => {
-    const backend = simulaBackend({ 'GET /api/auth/io': SESSIONE_NON_VALIDA() });
+test('ospite su URL seguiti: filtro disabilitato e invito al login senza richiesta privata', async () => {
+    const backend = simulaBackend({ 'GET /api/auth/io': SESSIONE_NON_VALIDA(), 'GET /api/eventi?filtro=tutti': json(200, [UNO]) });
     renderizzaApp('/eventi?filtro=seguiti');
     expect(await screen.findByRole('heading', { name: 'Gli eventi dei tuoi artisti.' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Artisti che seguo' })).toBeDisabled();
-    expect(backend.chiamate.map((c) => c.percorso)).toEqual(['/api/auth/io']);
+    expect(screen.getByRole('button', { name: 'Artisti seguiti' })).toBeDisabled();
+    expect(backend.di('GET', '/api/eventi?filtro=seguiti')).toHaveLength(0);
 });
 
 test('filtro sconosciuto e duplicato: 400 locale senza richiesta eventi', async () => {
     const backend = simulaBackend({ 'GET /api/auth/io': SESSIONE_NON_VALIDA() });
     renderizzaApp('/eventi?filtro=altro&filtro=tutti');
     expect(await screen.findByRole('heading', { name: 'Filtro non valido.' })).toBeInTheDocument();
-    expect(backend.chiamate.map((c) => c.percorso)).toEqual(['/api/auth/io']);
+    expect(backend.chiamate.some(c => c.percorso.startsWith('/api/eventi?'))).toBe(false);
 });
 
 test.each([
     ['?filtro=seguiti', '/eventi?filtro=seguiti', 'seguiti'],
+    ['?filtro=seguiti&genere_id=1', '/eventi?filtro=seguiti&genere_id=1', 'seguiti&genere_id=1'],
     ['?filtro=tutti', '/eventi?filtro=tutti', 'tutti'],
-    ['?filtro=seguiti&altro=valore', '/eventi?filtro=seguiti', 'seguiti'],
+    ['?filtro=tutti&genere_id=1&altro=valore', '/eventi?filtro=tutti&genere_id=1', 'tutti&genere_id=1'],
+    ['?genere_id=2', '/eventi?filtro=tutti&genere_id=2', 'tutti&genere_id=2'],
+    ['?genere_id=-1', '/eventi', 'tutti'],
+    ['?genere_id=1&genere_id=2', '/eventi', 'tutti'],
     ['', '/eventi', 'tutti'],
     ['?filtro=altro', '/eventi', 'tutti'],
     ['?filtro=', '/eventi', 'tutti'],
@@ -181,7 +228,7 @@ test.each([
     expect(ritorno).toHaveAttribute('href', destinazione);
     await userEvent.setup().click(ritorno);
     expect(await screen.findByText('1 evento')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: filtro === 'seguiti' ? 'Artisti che seguo' : 'Tutti' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: nomeFiltro(filtro) })).toHaveAttribute('aria-pressed', 'true');
     expect(backend.di('GET', `/api/eventi?filtro=${filtro}`)).toHaveLength(1);
 });
 
@@ -197,19 +244,19 @@ test('ID non valido e 404: pagina dedicata', async () => {
     expect((await screen.findAllByRole('heading', { name: 'Evento non trovato.' })).length).toBeGreaterThan(0);
 });
 
-test('errore e retry di elenco, dettaglio e 401 su seguiti', async () => {
+test('errore e retry dell’elenco per genere', async () => {
     let tentativi = 0;
     const backend = simulaBackend({
         'GET /api/auth/io': json(200, sessioneDi()),
-        'GET /api/eventi?filtro=seguiti': () => ++tentativi === 1
-            ? json(401, { messaggio: 'Sessione non valida' }) : json(200, [UNO]),
+        'GET /api/eventi?filtro=tutti&genere_id=1': () => ++tentativi === 1
+            ? json(503, { messaggio: 'Non disponibile' }) : json(200, [UNO]),
     });
-    renderizzaApp('/eventi?filtro=seguiti');
+    renderizzaApp('/eventi?filtro=tutti&genere_id=1');
     const errore = await screen.findByRole('alert');
-    expect(errore).toHaveTextContent('La sessione non è più valida');
+    expect(errore).toHaveTextContent('Gli eventi non sono disponibili.');
     await userEvent.setup().click(within(errore).getByRole('button', { name: /Riprova/ }));
     expect(await screen.findByText('1 evento')).toBeInTheDocument();
-    expect(backend.di('GET', '/api/eventi?filtro=seguiti')).toHaveLength(2);
+    expect(backend.di('GET', '/api/eventi?filtro=tutti&genere_id=1')).toHaveLength(2);
 });
 
 test('cambio filtro ignora una risposta precedente arrivata tardi', async () => {
@@ -217,10 +264,10 @@ test('cambio filtro ignora una risposta precedente arrivata tardi', async () => 
     simulaBackend({
         'GET /api/auth/io': json(200, sessioneDi()),
         'GET /api/eventi?filtro=tutti': () => vecchia.promessa,
-        'GET /api/eventi?filtro=seguiti': json(200, [DUE]),
+        'GET /api/eventi?filtro=tutti&genere_id=1': json(200, [DUE]),
     });
     renderizzaApp('/eventi');
-    await userEvent.setup().click(await screen.findByRole('button', { name: 'Artisti che seguo' }));
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Techno' }));
     expect(await screen.findByRole('link', { name: /Alba/ })).toBeInTheDocument();
     await act(async () => vecchia.risolvi(json(200, [UNO])));
     expect(screen.queryByRole('link', { name: /Notte Elettrica/ })).not.toBeInTheDocument();
@@ -280,4 +327,23 @@ test('evento approvato dall’API pubblica presente in lista e marker; evento ri
         expect(screen.queryByRole('article', { name: 'Ticketmaster rifiutato Ollama' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Ticketmaster rifiutato Ollama/ })).not.toBeInTheDocument();
     } finally { loader.mockRestore(); vi.unstubAllEnvs(); }
+});
+
+
+test.each(['genere_id=0', 'genere_id=-1', 'genere_id=1&genere_id=2', 'genere_id=999'])('genere non valido %s: nessuna richiesta eventi', async query => {
+    const backend = simulaBackend({ 'GET /api/auth/io': SESSIONE_NON_VALIDA() });
+    renderizzaApp(`/eventi?${query}`);
+    await screen.findByRole('heading', { name: 'Filtro non valido.' });
+    expect(backend.chiamate.some(c => c.percorso.startsWith('/api/eventi?'))).toBe(false);
+});
+test('generi non disponibili: Tutti resta utilizzabile e il caricamento generi può ripartire', async () => {
+    let tentativi = 0;
+    simulaBackend({ 'GET /api/auth/io': SESSIONE_NON_VALIDA(), 'GET /api/eventi?filtro=tutti': json(200, [UNO]),
+        'GET /api/generi': () => ++tentativi === 1 ? json(503, {}) : json(200, [{ id: 1, nome: 'Techno' }]) });
+    renderizzaApp('/eventi');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Generi non disponibili.');
+    expect(await screen.findByText('1 evento')).toBeInTheDocument();
+    await userEvent.setup().click(within(alert).getByRole('button', { name: /Riprova/ }));
+    expect(await screen.findByRole('button', { name: 'Techno' })).toBeInTheDocument();
 });

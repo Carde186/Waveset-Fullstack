@@ -1,4 +1,3 @@
-import { testoMessaggio } from '../api/messaggi';
 import { t } from '../localizzazione/lingua';
 import { CopertinaEvento } from '../eventi/CopertinaEvento';
 import { useCallback, useState } from 'react';
@@ -6,6 +5,9 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { elencaEventi, type Evento, type FiltroEventi } from '../api/eventi';
 import { ErroreApi } from '../api/client';
 import { useAutenticazione } from '../autenticazione/contesto';
+import { testoMessaggio } from '../api/messaggi';
+import { elencaGeneri } from '../api/catalogo';
+import { leggiFiltroEventi, queryEventi } from '../eventi/filtro';
 import { erroreCatalogo } from '../catalogo/formato';
 import { useRisorsa } from '../catalogo/useRisorsa';
 import { Bottone } from '../componenti/Bottone';
@@ -16,7 +18,7 @@ import { MappaEventi } from '../eventi/MappaEventi';
 import { AggiornamentoEventi } from '../eventi/AggiornamentoEventi';
 import stile from '../eventi/Eventi.module.css';
 
-function Elenco({ eventi, filtro }: { eventi: Evento[]; filtro: FiltroEventi }) {
+function Elenco({ eventi, genereId, filtro }: { eventi: Evento[]; genereId?: number; filtro: FiltroEventi }) {
     const naviga = useNavigate();
     const [scelta, impostaScelta] = useState<number | null>(null);
     const selezionato = eventi.some((e) => e.id === scelta) ? scelta : null;
@@ -25,8 +27,8 @@ function Elenco({ eventi, filtro }: { eventi: Evento[]; filtro: FiltroEventi }) 
         const elemento = document.getElementById(`evento-${id}`);
         elemento?.scrollIntoView?.({ block: 'nearest', behavior: 'auto' });
         elemento?.focus({ preventScroll: true });
-        void naviga(`/eventi/${id}?filtro=${filtro}`);
-    }, [filtro, naviga]);
+        void naviga(`/eventi/${id}${queryEventi(genereId, filtro)}`);
+    }, [genereId, filtro, naviga]);
     const selezionaDaLista = useCallback((id: number) => impostaScelta(id), []);
     const attuale = eventi.find((e) => e.id === selezionato);
     return <>
@@ -38,7 +40,7 @@ function Elenco({ eventi, filtro }: { eventi: Evento[]; filtro: FiltroEventi }) 
                 <ul className={stile.lista}>{eventi.map((e) => <li key={e.id}>
                     <article id={`evento-${e.id}`} tabIndex={-1} className={`${stile.carta} ${selezionato === e.id ? stile.selezionata : ''}`} aria-label={e.titolo}>
                         <CopertinaEvento evento={e} />
-                        <h3><Link to={`/eventi/${e.id}?filtro=${filtro}`}>{e.titolo} ↗</Link></h3>
+                        <h3><Link to={`/eventi/${e.id}${queryEventi(genereId, filtro)}`}>{e.titolo} ↗</Link></h3>
                         <InformazioniEvento evento={e} />
                         <LineupEvento evento={e} />
                         {e.coordinate ? <Bottone variante="contorno" aria-pressed={selezionato === e.id} onClick={() => selezionaDaLista(e.id)}>{t('text.showOnMap')}{' '}{e.titolo}</Bottone>
@@ -50,45 +52,45 @@ function Elenco({ eventi, filtro }: { eventi: Evento[]; filtro: FiltroEventi }) 
     </>;
 }
 
-function EventiCaricati({ filtro, utente }: { filtro: FiltroEventi; utente: number | null }) {
-    const { riprova: ricontrollaSessione } = useAutenticazione();
-    const carica = useCallback(() => elencaEventi(filtro), [filtro]);
-    const { stato, riprova } = useRisorsa(`eventi:${filtro}:${filtro === 'seguiti' ? utente : 'pubblico'}`, carica);
+function EventiCaricati({ genereId, filtro, utenteId }: { genereId?: number; filtro: FiltroEventi; utenteId: number | null }) {
+    const { riprova: controllaSessione } = useAutenticazione();
+    const carica = useCallback(() => elencaEventi(filtro, genereId), [filtro, genereId]);
+    const { stato, riprova } = useRisorsa(`eventi:${filtro}:${genereId ?? 'tutti'}:${filtro === 'seguiti' ? utenteId : 'pubblico'}`, carica);
     if (stato.tipo === 'caricamento') return <StatoCaricamento testo={t('text.loadingEvents')} livelloTitolo={2} />;
-    if (stato.tipo === 'errore') {
-        if (stato.causa instanceof ErroreApi && stato.causa.stato === 401) return <StatoErrore
-            titolo={t('text.yourSessionIsNoLongerValid2')}
-            messaggio={<><Bottone onClick={() => void ricontrollaSessione()}>{t('text.checkYourSession')}</Bottone> {t('text.toLogInAgainOrSelect')}</>}
-            suRiprova={riprova} livelloTitolo={2} />;
-        return <StatoErrore titolo={t('text.eventsAreUnavailable')} messaggio={erroreCatalogo(stato.causa)} suRiprova={riprova} livelloTitolo={2} />;
-    }
+    if (stato.tipo === 'errore' && stato.causa instanceof ErroreApi && stato.causa.stato === 401) return <StatoErrore titolo={t('text.yourSessionIsNoLongerValid2')} messaggio={<Bottone onClick={() => void controllaSessione()}>{t('text.checkYourSession')}</Bottone>} suRiprova={riprova} livelloTitolo={2} />;
+    if (stato.tipo === 'errore') return <StatoErrore titolo={t('text.eventsAreUnavailable')} messaggio={erroreCatalogo(stato.causa)} suRiprova={riprova} livelloTitolo={2} />;
     if (!stato.dati.length) return <StatoVuoto occhiello={t('text.events')} titolo={t('text.noUpcomingEvents')}
-        messaggio={filtro === 'seguiti' ? t('events.emptyFollowed') : t('events.empty')} livelloTitolo={2} />;
-    return <Elenco eventi={stato.dati} filtro={filtro} />;
+        messaggio={t(filtro === 'seguiti' ? 'events.emptyFollowed' : genereId === undefined ? 'events.empty' : 'events.emptyGenre')} livelloTitolo={2} />;
+    return <Elenco eventi={stato.dati} genereId={genereId} filtro={filtro} />;
 }
 
 export function Eventi() {
     const [parametri, impostaParametri] = useSearchParams();
-    const filtro = parametri.get('filtro') ?? 'tutti';
-    const valido = (filtro === 'tutti' || filtro === 'seguiti') && parametri.getAll('filtro').length <= 1;
-    const { stato, riprova } = useAutenticazione();
-    function cambia(v: FiltroEventi) {
-        const nuovi = new URLSearchParams(parametri);
-        nuovi.set('filtro', v);
-        impostaParametri(nuovi);
+    const { valido: queryValida, genereId, filtro } = leggiFiltroEventi(parametri);
+    const { stato: generi, riprova } = useRisorsa('generi:eventi', elencaGeneri);
+    const valido = queryValida && (genereId === undefined || generi.tipo !== 'pronto' || generi.dati.some(g => g.id === genereId));
+    const { stato: sessione, riprova: riprovaSessione } = useAutenticazione();
+    const puoSeguire = sessione.tipo === 'autenticato' && sessione.utente.ruolo === 'USER';
+    function cambia(id?: number, prossimoFiltro: FiltroEventi = filtro) {
+        impostaParametri(queryEventi(id, prossimoFiltro).slice(1));
     }
     return <section className="pagina">
         <Vetrina><div className="occhiello">{t('text.eventsLocalCatalog')}</div><h1 className="titolo">{t('text.seeYouByTheSpeakers')}</h1><p>{t('text.discoverUpcomingLiveShowsAndArtists')}</p></Vetrina>
-        {valido && (filtro === 'tutti' || stato.tipo === 'autenticato') ? <AggiornamentoEventi /> : null}
-        <div className={stile.filtri} role="group" aria-label={t('text.filterEvents')}>
-            <Bottone variante={filtro === 'tutti' ? 'primario' : 'contorno'} aria-pressed={filtro === 'tutti'} onClick={() => cambia('tutti')}>{t('text.all')}</Bottone>
-            {stato.tipo === 'autenticato' || filtro === 'seguiti' ? <Bottone disabled={stato.tipo !== 'autenticato'} variante={filtro === 'seguiti' ? 'primario' : 'contorno'} aria-pressed={filtro === 'seguiti'} onClick={() => cambia('seguiti')}>{t('text.artistsIFollow')}</Bottone> : null}
+        {valido && (filtro === 'tutti' || puoSeguire) ? <AggiornamentoEventi /> : null}
+        <div className={stile.filtri} role="group" aria-label={t('events.filterGenres')}>
+            <Bottone variante={valido && genereId === undefined && filtro === 'tutti' ? 'primario' : 'contorno'} aria-pressed={valido && genereId === undefined && filtro === 'tutti'} onClick={() => cambia(undefined, 'tutti')}>{t('text.all')}</Bottone>
+            <Bottone disabled={!puoSeguire} variante={filtro === 'seguiti' ? 'primario' : 'contorno'} aria-pressed={filtro === 'seguiti'} onClick={() => cambia(genereId, filtro === 'seguiti' ? 'tutti' : 'seguiti')}>{t('follow.pageTitle')}</Bottone>
+            {generi.tipo === 'pronto' ? generi.dati.map(g => <Bottone key={g.id} variante={genereId === g.id ? 'primario' : 'contorno'} aria-pressed={genereId === g.id} onClick={() => cambia(g.id)}>{g.nome}</Bottone>) : null}
         </div>
-        {!valido ? <StatoErrore titolo={t('text.invalidFilter')} messaggio={t('text.chooseAllOrArtistsIFollow')} livelloTitolo={2} />
-            : filtro === 'seguiti' && stato.tipo === 'caricamento' ? <StatoCaricamento testo={t('text.checkingYourSession')} livelloTitolo={2} />
-            : filtro === 'seguiti' && stato.tipo === 'errore' ? <StatoErrore titolo={t('text.iCanTCheckYourSession')} messaggio={testoMessaggio(stato.messaggio)} suRiprova={() => void riprova()} livelloTitolo={2} />
-            : filtro === 'seguiti' && stato.tipo === 'anonimo' ? <StatoVuoto occhiello={t('text.loginRequired')} titolo={t('text.eventsForYourArtists')}
-                messaggio={t('text.logInToBrowseEventsFor')} azione={{ testo: t('text.logIn'), verso: '/accedi' }} livelloTitolo={2} />
-            : <EventiCaricati filtro={filtro as FiltroEventi} utente={stato.tipo === 'autenticato' ? stato.utente.id : null} />}
+        {sessione.tipo === 'anonimo' ? <p className={stile.notaFiltro}>{t('follow.filterGuest')} <Link to="/accedi">{t('text.logIn')}</Link></p> : null}
+        {generi.tipo === 'caricamento' ? <p role="status">{t('events.loadingGenres')}</p> : null}
+        {generi.tipo === 'errore' ? <StatoErrore titolo={t('events.genresUnavailable')} messaggio={erroreCatalogo(generi.causa)} suRiprova={riprova} livelloTitolo={2} /> : null}
+        {!valido ? <StatoErrore titolo={t('text.invalidFilter')} messaggio={t('events.chooseGenre')} livelloTitolo={2} />
+            : genereId !== undefined && generi.tipo === 'caricamento' ? <StatoCaricamento testo={t('text.loadingEvents')} livelloTitolo={2} />
+            : filtro === 'seguiti' && sessione.tipo === 'caricamento' ? <StatoCaricamento testo={t('text.checkingYourSession')} livelloTitolo={2} />
+            : filtro === 'seguiti' && sessione.tipo === 'errore' ? <StatoErrore titolo={t('text.iCanTCheckYourSession')} messaggio={testoMessaggio(sessione.messaggio)} suRiprova={() => void riprovaSessione()} livelloTitolo={2} />
+            : filtro === 'seguiti' && sessione.tipo === 'anonimo' ? <StatoVuoto occhiello={t('follow.pageTitle')} titolo={t('text.eventsForYourArtists')} messaggio={t('text.logInToBrowseEventsFor')} azione={{ testo: t('text.logIn'), verso: '/accedi' }} livelloTitolo={2} />
+            : filtro === 'seguiti' && !puoSeguire ? <StatoVuoto occhiello="403" titolo={t('follow.onlyUsers')} messaggio={t('follow.onlyUsersMessage')} livelloTitolo={2} />
+            : <EventiCaricati genereId={genereId} filtro={filtro} utenteId={sessione.tipo === 'autenticato' ? sessione.utente.id : null} />}
     </section>;
 }

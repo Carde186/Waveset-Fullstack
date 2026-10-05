@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
     cercaCatalogo,
     elencaArtisti,
+    elencaArtistiSeguiti,
     elencaGeneri,
     idDaPercorso,
     leggiAlbum,
@@ -13,6 +14,21 @@ import {
 import { ErroreApi, impostaCsrf } from './client';
 import { json, simulaBackend } from '../test/backend';
 import { ALBUM, ARTISTA, ARTISTI, BRANO, GENERI } from '../test/catalogo';
+
+test('artisti seguiti: identità da cookie same-origin, immagini normalizzate e risposta inattesa rifiutata', async () => {
+    const foto = 'https://cdn-images.dzcdn.net/images/artist/test/250x250.jpg';
+    const backend = simulaBackend({ 'GET /api/artisti/seguiti': json(200, [
+        { id: 1, nome: 'Carl Cox', immagine_url: foto }, { id: 2, nome: 'Alesso', immagine_url: null },
+    ]) });
+    expect(await elencaArtistiSeguiti()).toEqual([
+        { id: 1, nome: 'Carl Cox', immagineUrl: foto }, { id: 2, nome: 'Alesso', immagineUrl: null },
+    ]);
+    expect(backend.chiamate[0]?.init.credentials).toBe('same-origin');
+    expect(backend.chiamate[0]?.percorso).toBe('/api/artisti/seguiti');
+    expect(backend.chiamate[0]?.intestazioni).toEqual({ Accept: 'application/json' });
+    simulaBackend({ 'GET /api/artisti/seguiti': json(200, { artisti: [] }) });
+    await expect(elencaArtistiSeguiti()).rejects.toBeInstanceOf(ErroreApi);
+});
 
 test('catalogo pubblico: client esistente, GET same-origin, nessun header di autenticazione inventato', async () => {
     impostaCsrf('csrf-di-prova');
@@ -203,4 +219,18 @@ test('link statici: mapping 404 assente, URL specifico valido, guasto non tratta
         'GET /api/brani/11/link-apple': json(200, { link_traccia: 'https://example.org/falso' }),
     });
     await expect(leggiLinkApple(11)).rejects.toMatchObject({ stato: 200 });
+});
+
+
+test('biografia IT/EN e fan Deezer: campi pubblici, zero valido, assenza retrocompatibile', async () => {
+    const biografia = { it: 'Biografia verificata.', en: 'Verified biography.', fonteUrl: 'https://example.org/artista' };
+    simulaBackend({ 'GET /api/artisti/1': json(200, { ...ARTISTA, bio: null, biografia,
+        popolarita_deezer: { fan: 0, url: 'https://www.deezer.com/artist/3951', aggiornato_at: '2026-10-05T10:00:00Z' } }) });
+    expect(await leggiArtista(1)).toMatchObject({ biografia, popolaritaDeezer: { fan: 0, url: 'https://www.deezer.com/artist/3951' } });
+    simulaBackend({ 'GET /api/artisti/1': json(200, ARTISTA) });
+    expect(await leggiArtista(1)).toMatchObject({ biografia: null, popolaritaDeezer: null });
+});
+test.each([-1, 1.5, '1200'])('fan Deezer invalidi %j rifiutati senza inventare ascolti', async fan => {
+    simulaBackend({ 'GET /api/artisti/1': json(200, { ...ARTISTA, popolarita_deezer: { fan, url: null } }) });
+    await expect(leggiArtista(1)).rejects.toMatchObject({ stato: 200 });
 });

@@ -10,15 +10,14 @@ import { Vetrina } from '../componenti/Vetrina';
 import { InformazioniEvento, LineupEvento } from '../eventi/InformazioniEvento';
 import { MappaEventi } from '../eventi/MappaEventi';
 import { CopertinaEvento } from '../eventi/CopertinaEvento';
+import { ritornoEventi } from '../eventi/filtro';
 import stile from '../eventi/Eventi.module.css';
 
 const nessunaSelezione = () => {};
 export function DettaglioEvento() {
     const { id: parametro } = useParams();
     const [parametri] = useSearchParams();
-    const filtro = parametri.get('filtro');
-    const ritorno = parametri.getAll('filtro').length === 1 && (filtro === 'tutti' || filtro === 'seguiti')
-        ? `/eventi?filtro=${filtro}` : '/eventi';
+    const ritorno = ritornoEventi(parametri);
     const id = idEventoDaPercorso(parametro);
     const carica = useCallback(() => id === null ? Promise.reject(new ErroreApi(400)) : leggiEvento(id), [id]);
     const { stato, riprova } = useRisorsa(`evento:${parametro}`, carica);
@@ -27,7 +26,7 @@ export function DettaglioEvento() {
     if (stato.tipo === 'errore') {
         if (stato.causa instanceof ErroreApi && (stato.causa.stato === 400 || stato.causa.stato === 404)) return <StatoVuoto
             occhiello={id === null ? t('events.invalidAddress') : '404'} titolo={t('text.eventNotFound')} messaggio={t('text.thisEventIsUnavailable')}
-            azione={{ testo: t('events.return'), verso: '/eventi' }} />;
+            azione={{ testo: t('events.return'), verso: ritorno }} />;
         return <StatoErrore titolo={t('text.eventDetailsAreUnavailable')} messaggio={stato.causa instanceof ErroreApi && stato.causa.stato === 401
             ? <>{t('text.yourSessionIsInvalid')}{' '}<Link to="/accedi">{t('text.logIn')}</Link> {t('text.andTryAgain')}</> : erroreCatalogo(stato.causa)} suRiprova={riprova} />;
     }

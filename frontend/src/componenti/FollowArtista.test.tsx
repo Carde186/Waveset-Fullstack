@@ -16,7 +16,7 @@ import {
 import type { Evento } from '../api/eventi';
 
 // Verifica il contratto lista → mappa senza SDK/rete; i test Eventi e Maps
-// esistenti coprono AdvancedMarkerElement, click e ritorno su entrambi i filtri.
+// esistenti coprono AdvancedMarkerElement, click e ritorno sui filtri per genere.
 vi.mock('../eventi/MappaEventi', () => ({
     MappaEventi: ({
         eventi,
@@ -61,7 +61,7 @@ const apri = (rotte: Parameters<typeof simulaBackend>[0] = {}) => {
     return { backend, vista };
 };
 
-test('follow persistito: filtro seguiti, solo marker/lista pertinenti, click/dettaglio/ritorno e unfollow vuoto', async () => {
+test('follow persistito e indipendente dal genere: marker/lista, click, ritorno e unfollow', async () => {
     let seguito = false;
     const { backend, vista } = apri({
         'GET /api/artisti/1': () => json(200, { ...ARTISTA, seguito }),
@@ -74,7 +74,7 @@ test('follow persistito: filtro seguiti, solo marker/lista pertinenti, click/det
             return senzaCorpo(204);
         },
         'GET /api/eventi?filtro=tutti': json(200, [EVENTO, ALTRO]),
-        'GET /api/eventi?filtro=seguiti': () => json(200, seguito ? [EVENTO] : []),
+        'GET /api/eventi?filtro=tutti&genere_id=1': json(200, [EVENTO]),
         'GET /api/eventi/101': json(200, EVENTO),
     });
     const user = userEvent.setup();
@@ -83,7 +83,7 @@ test('follow persistito: filtro seguiti, solo marker/lista pertinenti, click/det
         'aria-pressed',
         'true',
     );
-    expect(screen.getByText('Segui questo artista.')).toHaveAttribute('role', 'status');
+    expect(screen.queryByText('Segui questo artista.')).not.toBeInTheDocument();
     const richiesta = backend.di('PUT', '/api/artisti/1/segui')[0]!;
     expect(richiesta.intestazioni['X-CSRF-Token']).toBe(CSRF);
     expect(richiesta.init.credentials).toBe('same-origin');
@@ -93,7 +93,7 @@ test('follow persistito: filtro seguiti, solo marker/lista pertinenti, click/det
             name: 'Eventi',
         }),
     );
-    await user.click(await screen.findByRole('button', { name: 'Artisti che seguo' }));
+    await user.click(await screen.findByRole('button', { name: 'Techno' }));
     expect(await screen.findByText('1 evento')).toBeInTheDocument();
     expect(screen.queryByText('Live altro artista')).not.toBeInTheDocument();
     expect(within(screen.getByTestId('marker-eventi')).getAllByRole('button')).toHaveLength(1);
@@ -102,9 +102,9 @@ test('follow persistito: filtro seguiti, solo marker/lista pertinenti, click/det
         await screen.findByRole('heading', { level: 1, name: 'Live seguito' }),
     ).toBeInTheDocument();
     const ritorno = screen.getByRole('link', { name: '← Eventi' });
-    expect(ritorno).toHaveAttribute('href', '/eventi?filtro=seguiti');
+    expect(ritorno).toHaveAttribute('href', '/eventi?filtro=tutti&genere_id=1');
     await user.click(ritorno);
-    expect(await screen.findByRole('button', { name: 'Artisti che seguo' })).toHaveAttribute(
+    expect(await screen.findByRole('button', { name: 'Techno' })).toHaveAttribute(
         'aria-pressed',
         'true',
     );
@@ -118,11 +118,10 @@ test('follow persistito: filtro seguiti, solo marker/lista pertinenti, click/det
         CSRF,
     );
     vista.unmount();
-    renderizzaApp('/eventi?filtro=seguiti');
-    expect(
-        await screen.findByRole('heading', { name: 'Nessun evento in arrivo.' }),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId('marker-eventi')).not.toBeInTheDocument();
+    renderizzaApp('/eventi?filtro=tutti&genere_id=1');
+    expect(await screen.findByText('1 evento')).toBeInTheDocument();
+    expect(within(screen.getByTestId('marker-eventi')).getAllByRole('button')).toHaveLength(1);
+    expect(backend.di('GET', '/api/eventi?filtro=seguiti')).toHaveLength(0);
 });
 
 test.each(['ospite', 'ADMIN'] as const)('%s: nessun pulsante follow o mutazione', async (tipo) => {
@@ -137,6 +136,34 @@ test.each(['ospite', 'ADMIN'] as const)('%s: nessun pulsante follow o mutazione'
         screen.queryByRole('button', { name: /Segui artista|Smetti di seguire/ }),
     ).not.toBeInTheDocument();
     expect(backend.chiamate.every((c) => c.metodo === 'GET')).toBe(true);
+    if (tipo === 'ospite') expect(screen.getByRole('link', { name: 'Accedi per seguire l’artista' })).toHaveAttribute('href', '/accedi');
+    else expect(screen.queryByRole('link', { name: 'Accedi per seguire l’artista' })).not.toBeInTheDocument();
+});
+
+test.each([false, true])('ospite → accesso (passaggio registrazione: %s) → stesso artista senza follow automatico', async registrazione => {
+    const { backend } = apri({
+        'GET /api/auth/io': SESSIONE_NON_VALIDA(),
+        'GET /api/artisti/1': json(200, { ...ARTISTA, seguito: false }),
+        'POST /api/auth/registrazione': json(201, { utente: ALICE }),
+        'POST /api/auth/web/login': json(200, sessioneDi()),
+    });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('link', { name: 'Accedi per seguire l’artista' }));
+    await screen.findByRole('heading', { name: 'Accedi.' });
+    if (registrazione) {
+        await user.click(within(screen.getByRole('main')).getByRole('link', { name: 'Registrati' }));
+        await user.type(screen.getByLabelText('Nome'), 'Alice');
+        await user.type(screen.getByLabelText('Email'), ALICE.email);
+        await user.type(screen.getByLabelText('Password'), 'Password-di-test-123');
+        await user.click(screen.getByRole('button', { name: 'Registrati ↗' }));
+        await screen.findByRole('heading', { name: 'Accedi.' });
+        expect(screen.getByLabelText('Email')).toHaveValue(ALICE.email);
+    } else await user.type(screen.getByLabelText('Email'), ALICE.email);
+    await user.type(screen.getByLabelText('Password'), 'Password-di-test-123');
+    await user.click(screen.getByRole('button', { name: 'Accedi ↗' }));
+    expect(await screen.findByRole('button', { name: 'Segui artista' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: ARTISTA.nome })).toBeInTheDocument();
+    expect(backend.di('PUT', '/api/artisti/1/segui')).toHaveLength(0);
 });
 
 test('refresh ricostruisce lo stato seguito dal backend', async () => {
@@ -157,7 +184,7 @@ test('doppio click durante richiesta: una mutazione e nessun aggiornamento antic
     fireEvent.click(button);
     fireEvent.click(button);
     expect(screen.getByRole('button', { name: 'Aggiornamento…' })).toBeDisabled();
-    expect(screen.getByText('Non segui questo artista.')).toBeInTheDocument();
+    expect(screen.queryByText('Non segui questo artista.')).not.toBeInTheDocument();
     await waitFor(() => expect(backend.di('PUT', '/api/artisti/1/segui')).toHaveLength(1));
     attesa.risolvi(senzaCorpo(204));
     expect(await screen.findByRole('button', { name: 'Smetti di seguire' })).toBeInTheDocument();

@@ -159,7 +159,7 @@ describe('navigazione e stati', () => {
             within(navigazione)
                 .getAllByRole('link')
                 .map((l) => l.textContent),
-        ).toEqual(['Esplora', 'Eventi']);
+        ).toEqual(['Esplora', 'Eventi', 'Artisti seguiti']);
         const account = screen.getByRole('navigation', { name: 'La tua area' });
         expect(within(account).getByRole('combobox', { name: 'Lingua' })).toBeInTheDocument();
         expect(within(account).getAllByRole('link').map((l) => l.textContent)).toEqual(['Profilo', 'Impostazioni account', 'Alice ↗']);

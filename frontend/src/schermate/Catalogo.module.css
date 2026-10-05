@@ -118,3 +118,17 @@
     margin: 16px;
     overflow-wrap: anywhere;
 }
+
+.sezioneArtisti, .sezioneEventi { padding: 28px; margin: 32px 0; border: 1px solid var(--linea); border-radius: 18px; min-width: 0; }
+.sezioneArtisti { background: var(--pannello); border-top: 4px solid var(--lime); }
+.sezioneEventi { background: var(--vetrina); border-top: 4px solid var(--menta); }
+.etichettaSezione { text-transform: uppercase; letter-spacing: .14em; font-size: .75rem; font-weight: 800; color: var(--menta); }
+.sezioneArtisti h2, .sezioneEventi h2 { margin-top: 10px; }
+@media (max-width: 650px) { .sezioneArtisti, .sezioneEventi { padding: 18px; } }
+.biografia { margin: 24px 0; min-width: 0; }
+.biografia h2 { margin: 10px 0; font-size: 1.1rem; }
+.biografia > a, .fan a { color: var(--lime); }
+.fan { margin-top: 18px; border-top: 1px solid var(--vetrina-bordo); padding-top: 16px; }
+.fan strong { display: block; color: var(--lime); font-size: clamp(1.5rem, 3vw, 2rem); }
+.fan span { font-weight: 700; }
+.fan p { color: var(--vetrina-testo); line-height: 1.6; font-size: .85rem; }

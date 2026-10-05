@@ -3,12 +3,11 @@ import { useState } from 'react';
 import { messaggioUscita, testoMessaggio, type Messaggio } from '../api/messaggi';
 import { useAutenticazione } from '../autenticazione/contesto';
 import { Avviso } from '../componenti/Avviso';
-import { Bottone } from '../componenti/Bottone';
+import { Bottone, BottoneLink } from '../componenti/Bottone';
 import { Vetrina } from '../componenti/Vetrina';
 import stile from './Area.module.css';
 
-// Area autenticata essenziale: chi sei e come uscire. Nient'altro: le altre sezioni
-// Playlist arriverà in un incremento successivo; Esplora ed Eventi sono nella barra.
+// Profilo autenticato: dati personali, accesso agli artisti seguiti e sessioni.
 export function Area() {
     const { stato, esci, esciDaTutti } = useAutenticazione();
     const [inCorso, impostaInCorso] = useState<'uscita' | 'uscita-tutti' | null>(null);
@@ -45,6 +44,9 @@ export function Area() {
                     <li>{utente.email}</li>
                     <li>{t('text.role')}{' '}{utente.ruolo}</li>
                 </ul>
+                {utente.ruolo === 'USER' ? <div className={stile.azioniProfilo}>
+                    <BottoneLink to="/artisti-seguiti">{t('follow.pageTitle')}</BottoneLink>
+                </div> : null}
             </Vetrina>
 
             <div className="sezione">
@@ -102,8 +104,6 @@ export function Area() {
                 </div>
             </div>
 
-            <div className="piede">
-                {t('text.learningProjectEventsAndPlaylistsWill')}</div>
         </section>
     );
 }
