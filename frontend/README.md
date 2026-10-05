@@ -1,10 +1,15 @@
 # Waveset — frontend web
 
-Il frontend comprende accesso, registrazione, area, catalogo locale, `/eventi`, `/eventi/:id` e revisione eventi Ticketmaster ADMIN nello stile «Club». La mappa Google funziona quando sono configurati chiave browser e Map ID. Playlist, ricerca Apple live e AI web restano incrementi successivi.
+## Ambiente sviluppo unico
+
+L'app principale si apre su **http://localhost:5174** e usa `.env`, `docker-compose.yml` e il DB `waveset`, con catalogo/provider/eventi consolidati. Avvio dalla root: `docker compose --env-file .env -f docker-compose.yml -p waveset-fullstack up -d --build`. Non occorrono i processi Vite 5173 e backend host 3010; sono stati fermati. Il frontend browser di test è solo opzionale, con `--profile browser` e porta 5175; lo stack test resta spento nell'uso normale. Le verifiche datate qui sotto sono storiche. Vedi [procedura corrente](../README.md#avvio-locale).
+
+Il frontend comprende accesso, registrazione, area, catalogo locale, `/eventi`, `/eventi/:id` e revisione eventi Ticketmaster ADMIN nello stile «Club». La mappa Google funziona quando sono configurati chiave browser e Map ID. Le playlist e la ricerca Apple live non fanno parte del flusso corrente.
 
 ## Eventi e Google Maps
 
-- `/eventi` legge `GET /api/eventi?filtro=tutti` anche per gli ospiti. Il pulsante «Artisti che seguo» imposta `?filtro=seguiti`, richiede la sessione browser e legge `GET /api/eventi?filtro=seguiti`. La selezione è nell'URL; i link diretti e la navigazione indietro del browser funzionano. `/eventi/:id` legge `GET /api/eventi/:id`, pubblico.
+- `/eventi` usa filtri pubblici per genere da `/api/generi` e, per USER, «Artisti seguiti», combinabili con `GET /api/eventi?filtro=seguiti&genere_id=…`. Tutti azzera entrambi. I filtri restano nell'URL, nel dettaglio e al ritorno. `/eventi/:id` legge `GET /api/eventi/:id`, pubblico.
+- `/artisti-seguiti` elenca gli artisti dell'utente corrente da `GET /api/artisti/seguiti`, con foto, collegamento al profilo, unfollow e accesso agli eventi seguiti. Riservata a USER; disponibile nella navigazione e nel Profilo.
 - Il backend pubblica eventi da oggi in poi, ordinati per data e ora, e include il lineup degli artisti locali. `data_evento` è il giorno locale del locale in `YYYY-MM-DD`: le tre query della sola route eventi usano `DATE_FORMAT` per impedire che mysql2 e JSON lo convertano in un istante UTC. `ora_evento` rimane l'ora locale separata. La pagina valida date, orari, lineup, ID e coordinate. Un evento senza coordinate resta nell'elenco.
 - Le quattro modalità sono Standard (`roadmap`), Scura (`roadmap` con `ColorScheme.DARK`), Satellite (`satellite`) e Ibrida (`hybrid`). La modalità si salva in localStorage sotto `waveset.eventi.modalitaMappa`; è l'unico dato della funzione salvato lì. Il passaggio a/dalla Scura ricrea la mappa conservando centro, zoom e selezione, perché Google applica `colorScheme` solo alla creazione.
 - Ogni evento con coordinate ha un AdvancedMarkerElement personalizzato: foto profilo `lineup[0].immagineUrl`, già fornita dall'API come `immagine_url`, senza endpoint o campi nuovi. Il primo artista della lineup è il principale per convenzione: il backend ordina alfabeticamente e non espone un ruolo headliner. La foto è ritagliata a cerchio (36 px, bordo 40 px, area cliccabile 44 px); URL assente, escluso dal catalogo o foto non raggiungibile mostrano l'iniziale maiuscola su verde profondo con testo lime, sempre gli stessi colori Club. Senza lineup compare una nota musicale. Ogni evento ha un nodo distinto anche con lo stesso artista; l'URL della foto resta quello del catalogo, senza trasformazioni o richieste di ricerca esterne.
@@ -54,7 +59,7 @@ Avvertenze:
 - La fatturazione Google Cloud e la Maps JavaScript API devono essere abilitate.
 - Il test reale usa **http://localhost:5174**.
 
-`frontend/.env.local` configura lo sviluppo Vite su `http://localhost:5173`. Il frontend del Compose di test su `http://localhost:5174` legge invece queste variabili dal `.env.test` locale durante la build: modificare `.env.local` e riavviare Vite non aggiorna quella build. Per il Compose occorre ricostruire l'immagine frontend dopo aver impostato le variabili in `.env.test`, mantenendo entrambi i file fuori dai commit.
+Lo sviluppo principale su `http://localhost:5174` legge Maps dal `.env` locale durante la build Compose. Ricostruire `frontend` dopo modifiche alle variabili; cambiare `frontend/.env.local` non aggiorna l'immagine Docker. Il frontend test opzionale legge `.env.test` e usa 5175. I valori reali restano fuori da Git.
 
 ## Esplora locale e dettagli (verificati sull'host)
 
@@ -64,7 +69,7 @@ Le nuove pagine pubbliche sono `/esplora`, `/artisti/:id`, `/brani/:id` e `/albu
 - Ricerca da 2 a 100 caratteri, debounce di 300 ms, caricamento, errore/riprova e risultati vuoti. Le risposte superate vengono ignorate anche dopo cambio filtro, cambio ID, svuotamento, smontaggio o ritorno a una ricerca precedente.
 - I dettagli collegano soltanto artista, album e brani effettivamente presenti nella risposta. Gestiscono 404, campi nulli, brani senza album, featuring separati e liste vuote. Gli eventi dell'artista collegano al dettaglio evento.
 - Il modulo `src/api/catalogo.ts` valida le risposte e normalizza snake_case/camelCase. Usa il client HTTP esistente, sempre sulla stessa origine, con sole GET per il catalogo.
-- I link Apple alle tracce e Spotify agli album usano le mappature backend esistenti; un 404 significa link assente, un guasto permette una riprova separata. Non viene chiamata la copertina iTunes live e non sono implementate ricerca Apple live o nuove integrazioni.
+- Le pagine artista usano la discografia Deezer. Nei dettagli del catalogo locale restano i link Spotify verificati già salvati; un 404 significa link assente e un guasto permette una riprova separata. Non ci sono richieste o pulsanti Apple Music.
 - Card e sfondi usano i gradienti e il lime Club. Le immagini Picsum non vengono mostrate: il fallback è grafica astratta dichiarata. Le foto artista vengono mostrate nel dettaglio soltanto con crediti; i link attivi sono limitati a URL HTTPS ammessi.
 
 **Verifica precedente di Esplora:** lint, typecheck, 156 test frontend in 10 file e build passati sull'host. I test simulavano le API, senza Docker, DB o chiamate a servizi esterni. La verifica Compose descritta sotto riguarda l'incremento di autenticazione.
@@ -175,7 +180,7 @@ Se il backend locale di test è su un'altra porta, imposta `API_TARGET` al suo U
 ## Limiti noti
 
 - Registrarsi da un browser che ha ancora un cookie di sessione revocato altrove dà 403 dal backend: il frontend mostra un messaggio controllato, ma la correzione spetta al backend.
-- Interfaccia disponibile in italiano e inglese; il frontend è presente nel solo Compose di test. Esplora locale, Eventi e dettagli sono implementati. La mappa richiede configurazione Google; ricerca Apple live, Playlist e AI web restano da implementare.
+- Interfaccia disponibile in italiano e inglese; il frontend è presente nel solo Compose di test. Esplora locale, Eventi e dettagli sono implementati. La mappa richiede configurazione Google. Le integrazioni Apple Music e iTunes sono state rimosse.
 - I test frontend usano un backend simulato. In questo incremento sono passati lint, typecheck, **96 test** e build sull'host, più la build Docker e la prova reale descritta sopra. Sono passati anche **385 test backend pertinenti**, senza scritture nel DB; la suite backend completa non è stata rieseguita.
 - Lo script Chrome/CDP è temporaneo e non incluso nel repository. Le sue asserzioni usano `textContent` per evitare l'effetto del CSS uppercase e consumano i corpi fetch diagnostici senza stamparli; nessuna correzione applicativa è stata necessaria.
 - Avvio da clone/volume vuoto, HTTPS e arresto dello stack non verificati in questo incremento. Dietro nginx i rate limit condividono l'IP del proxy perché `trust proxy` resta disattivato.
@@ -207,7 +212,7 @@ I testi applicativi della mappa e i titoli dei marker cambiano senza ricreare la
 
 ## Follow artisti e filtro eventi persistente
 
-Nel dettaglio di un artista locale, un USER autenticato vede lo stato **Segui questo artista / Non segui questo artista** e il pulsante **Segui artista / Smetti di seguire**, con equivalenti EN. L'identità viene risolta prima di caricare il dettaglio personale. Il valore iniziale arriva dal campo `seguito` di `GET /api/artisti/:id`; dopo la mutazione riuscita lo stato si aggiorna immediatamente. Durante la richiesta il pulsante è disabilitato; doppio click non produce richieste concorrenti. Un errore conserva lo stato precedente e mostra un messaggio controllato, tradotto anche se già visibile. Al refresh lo stato viene riletto dal server. Ospiti e ADMIN non hanno il pulsante.
+Nel dettaglio di un artista locale, un USER autenticato vede il pulsante **Segui artista / Smetti di seguire**, con equivalenti EN e stato accessibile `aria-pressed`, senza una frase di stato ripetuta. L'identità viene risolta prima di caricare il dettaglio personale. Il valore iniziale arriva dal campo `seguito` di `GET /api/artisti/:id`; dopo la mutazione riuscita lo stato si aggiorna immediatamente. Durante la richiesta il pulsante è disabilitato; doppio click non produce richieste concorrenti. Un errore conserva lo stato precedente e mostra un messaggio controllato, tradotto anche se già visibile. Al refresh lo stato viene riletto dal server. Gli ospiti hanno **Accedi per seguire l’artista**, che ritorna al profilo dopo login/registrazione senza follow automatico; ADMIN non ha azioni follow.
 
 Si riutilizzano i contratti esistenti, senza nuovi endpoint:
 
@@ -219,7 +224,7 @@ Si riutilizzano i contratti esistenti, senza nuovi endpoint:
 
 Le mutazioni richiedono la sessione; nel browser si usano cookie HttpOnly e CSRF/origine esistenti. ID non valido: 400; ospite: 401; ADMIN o CSRF/origine non validi: 403; guasto DB: 500 `{ "messaggio": "Errore interno del server" }`. Il client non invia ID utente né ruolo: il server usa l'identità della sessione. Nessuna modifica al contratto bearer. La chiave primaria `(utente_id, artista_id)` di `utente_artista` impedisce duplicati; nessuna migrazione o modifica ai seed.
 
-`GET /api/eventi?filtro=seguiti` usa già un `EXISTS` sulla lineup e sui follow dell'utente corrente: basta che sia seguito **un qualsiasi artista della lineup**, anche secondario. Un evento compare una sola volta anche quando sono seguiti più artisti della stessa lineup. Il frontend usa la stessa risposta per lista e marker; con zero risultati mostra il messaggio dedicato e nessun marker. I link al dettaglio evento e il ritorno mantengono `?filtro=seguiti`. Da ospite il filtro non è mostrato sulla lista pubblica; su un URL diretto `?filtro=seguiti` è disabilitato e compare l'invito ad accedere.
+Il filtro `GET /api/eventi?filtro=seguiti` usa sessione e EXISTS sulla lineup. La pagina web lo combina con i generi: qualunque artista della lineup può corrispondere, senza duplicati; `filtro` e `genere_id` restano nei link al dettaglio e al ritorno. Per gli ospiti il filtro seguiti è disabilitato con messaggio di accesso. La pagina `/artisti-seguiti` rilegge il DB a ogni visita; nessun follow è scritto fuori dai flussi esistenti. Dettagli del contratto e degli stati in [Artisti seguiti](../docs/catalogo-pubblico.md#artisti-seguiti).
 
 ### Test e verifica reale del follow
 
@@ -241,7 +246,7 @@ In questo incremento: **247 test frontend**, **8 test HTTP follow in memoria**, 
 
 Le nuove chiavi IT/EN sono nei dizionari esistenti, ad esempio `sync.lastUpdate`, `sync.stale`, `sync.missing`. Il cambio lingua aggiorna testi/date senza ricaricare lista o fare nuove chiamate alla fonte. Nessuna chiave Ticketmaster nel bundle o nella configurazione Vite.
 
-La logica backend, lo scheduler e il comando manuale sono documentati nella [sezione Ticketmaster del README principale](../README.md#sincronizzazione-ticketmaster). Nessun evento viene presentato come aggiornato in tempo reale; la copertura dipende dalla fonte.
+La logica backend, lo scheduler e il comando manuale sono documentati nella [sezione Ticketmaster del README principale](../README.md#chiave-api-ticketmaster). Nessun evento viene presentato come aggiornato in tempo reale; la copertura dipende dalla fonte.
 
 Regressioni: `AggiornamentoEventi.test.tsx` verifica metadati, stantio/errore, lista ancora disponibile, IT/EN, dettaglio/ritorno con filtro e validazione del contratto. I test frontend usano HTTP simulato; non costituiscono una prova della Discovery API reale.
 
@@ -283,7 +288,7 @@ Ospiti e USER non accedono alle route di revisione (anche le API verificano
 il ruolo); gli eventi approvati restano pubblici. Nessuna migrazione o modifica
 ai seed. I testi nuovi sono nelle chiavi `adminEvents.*` di
 `src/localizzazione/it.json` ed `en.json`. La revisione è manuale: non è una
-verifica AI né introduce una ricerca Apple live.
+verifica AI. Per il flusso automatico attuale consultare [docs/ollama-eventi.md](../docs/ollama-eventi.md).
 
 Regressioni, dalla directory `frontend/`:
 
@@ -309,20 +314,27 @@ verificando scritture DB, visibilità pubblica e marker reali. Chiude soltanto
 le sessioni aperte dalla prova e rimuove soltanto gli ID delle proprie fixture;
 i candidati reali restano disponibili per la revisione umana.
 
-## Gestione ADMIN artisti / Apple Music
-
-`/admin/artisti` elenca gli artisti locali; `/admin/artisti/:id` mostra profilo Apple Music collegato, ricerca per nome, risultati con artwork artista/generi/link, selezione e conferma esplicita (con avviso di sostituzione), sync manuale e stati loading/vuoto/errore. Solo ADMIN; chiamate same-origin con sessione e CSRF esistenti. Testi IT/EN in `localizzazione/it.json` e `en.json`, chiavi `apple.*`. Nessuna credenziale Apple nel frontend, nessun MusicKit browser e nessuna modifica alla UI degli eventi. Vedi [guida backend/configurazione](../docs/apple-music.md).
-
 ## Gestione ADMIN provider artisti
 
-Le pagine `/admin/artisti` e `/admin/artisti/:id` usano `ARTISTI_PROVIDER` restituito dal backend, con Deezer come default e Apple opzionale. API in `src/api/artistiProvider.ts`, testi IT/EN `provider.*`; ricerca con foto/fan/generi se presenti, conferma esplicita, sync e badge Ticketmaster con ricontrollo. Il controllo è informativo: non modifica le conferme ADMIN né blocca il collegamento artistico. Le immagini collegate arrivano tramite `lineup[].immagine_url` ai marker esistenti. Nessuna chiave nel browser. Guida: [provider artisti](../docs/provider-artisti.md).
+Le pagine `/admin/artisti` e `/admin/artisti/:id` usano `ARTISTI_PROVIDER` restituito dal backend, con Deezer come unico provider. API in `src/api/artistiProvider.ts`, testi IT/EN `provider.*`; ricerca con foto/fan/generi se presenti, conferma esplicita, sync e badge Ticketmaster con ricontrollo. Il controllo è informativo: non modifica le conferme ADMIN né blocca il collegamento artistico. Le immagini collegate arrivano tramite `lineup[].immagine_url` ai marker esistenti. Nessuna chiave nel browser. Guida: [provider artisti](../docs/provider-artisti.md).
 
 ## Ritratti nel hero e copertine Ticketmaster
 
-`Vetrina` accetta una visuale opzionale: il dettaglio artista vi colloca il ritratto quadrato (massimo320px, provider→locale→grafica), accanto al nome su desktop e sotto il testo su mobile. `CopertinaEvento` rende `Evento.immagineUrl` nella lista in un riquadro16:9 e nel pannello destro del hero del dettaglio, con `object-fit: cover` e `object-position: center`; su mobile informazioni sopra e immagine sotto in rapporto16:9; assenza/errore mostra un calendario neutro, mai una foto della lineup. Testi `events.cover` e `events.coverUnavailable` IT/EN. Foto lineup e marker sono indipendenti. Esplora non contiene card evento. Persistenza e backfill: [guida immagini eventi](../docs/immagini-eventi.md).
+`Vetrina` accetta una visuale opzionale: il dettaglio artista vi colloca il ritratto quadrato (massimo320px, provider→locale→grafica), accanto al nome su desktop e sotto il testo su mobile. `CopertinaEvento` rende `Evento.immagineUrl` nella lista in un riquadro16:9 e nel pannello destro del hero del dettaglio, con `object-fit: cover` e `object-position: center`; su mobile informazioni sopra e immagine sotto in rapporto16:9; assenza/errore mostra un calendario neutro, mai una foto della lineup. Testi `events.cover` e `events.coverUnavailable` IT/EN. Foto lineup e marker sono indipendenti. Persistenza e backfill: [guida immagini eventi](../docs/catalogo-pubblico.md#immagini-e-copertine).
 
 ## Registro Ollama e visibilità eventi
 
 `/admin/eventi` e `/admin/eventi/:id` sono registro consultabile delle valutazioni automatiche Ticketmaster: stato finale, confidenza, motivazione, modello, data, tentativi/errore e storico JSON. L'unica azione è “Rivaluta con Ollama” (202, controllo ADMIN+CSRF), disabilitata mentre già in attesa. Non esistono più pulsanti approva/rifiuta/conferma nel flusso eventi. Testi IT/EN `ollama.*`. Il frontend non chiama né configura Ollama: usa `/api/admin/eventi/registro` e gli endpoint backend.
 
 Esplora include prossimi eventi dalla stessa API pubblica della pagina Eventi: solo Ticketmaster approvati automaticamente; marker, filtri/follow e foto/copertine restano invariati. Setup worker e audit: [docs/ollama-eventi.md](../docs/ollama-eventi.md).
+
+## Biografie, fan e copertine centrate
+
+Il dettaglio artista mostra la biografia e il conteggio dei fan Deezer dentro
+il hero verde, accanto al ritratto. I fan compaiono sotto la bio quando salvati
+sul collegamento confermato. Non sono
+ascolti. Il testo curato nel DB prevale sul fallback editoriale IT/EN con fonte;
+il profilo pubblico non mostra i link alle fonti né l'etichetta «Dietro la musica».
+Nessun nuovo lookup esterno per questi dati. Le copertine dei brani sono
+quadrate, centrate nella card e non deformate. Contratto e limiti:
+[Catalogo pubblico](../docs/catalogo-pubblico.md#biografie-e-fan).
