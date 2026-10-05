@@ -100,7 +100,7 @@ docker compose exec -T backend npm run catalogo:classifica -- --applica
 
 - Su un ambiente nuovo esiste **solo l'ADMIN** (creato in modo idempotente da `backend/scripts/creaAdmin.js` con le credenziali di `.env`). Gli utenti si registrano da soli come `USER`: il ruolo è deciso dal server.
 - Password hashate con bcrypt, sessioni lato server, cookie HttpOnly con protezione CSRF, rate limit su registrazione e login.
-- Ogni utente vede e modifica solo i propri dati (playlist, follow, account); le route `/api/admin/*` sono riservate ad ADMIN.
+- Ogni utente vede e modifica solo i propri dati (follow e account); le route `/api/admin/*` sono riservate ad ADMIN.
 
 ## Chiave API Ticketmaster
 
@@ -288,7 +288,13 @@ Se vuoi usare Maps in questo ambiente, configura i valori in `.env.test` e autor
 
 ## Funzionalità future
 
-Playlist più ricche, feed delle tendenze con frequenza osservata, verifica e-mail, notifiche per nuovi eventi degli artisti seguiti.
+Possibili sviluppi per migliorare la scoperta degli artisti e dei loro eventi:
+
+- Recupero della password tramite e-mail.
+- Verifica dell'indirizzo e-mail degli utenti.
+- Notifiche per nuovi eventi degli artisti seguiti.
+- Ampliamento del catalogo artisti e delle fonti degli eventi.
+- Feed delle tendenze basato su dati osservabili e verificabili.
 
 ## Documentazione tecnica
 
