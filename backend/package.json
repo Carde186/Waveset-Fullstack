@@ -6,7 +6,7 @@
     "scripts": {
         "start": "node src/server.js",
         "dev": "nodemon src/server.js",
-        "test": "node --env-file=../.env.test --test --test-concurrency=1 \"test/**/*.test.js\"",
+        "test": "node --env-file=../.env.test --test --experimental-test-isolation=process --test-concurrency=1 \"test/**/*.test.js\"",
         "admin:crea": "node scripts/creaAdmin.js",
         "eventi:immagini": "node scripts/backfillImmaginiTicketmaster.js",
         "eventi:sync": "node scripts/sincronizzaTicketmaster.js",

@@ -5,11 +5,10 @@ const assert = require('node:assert/strict');
 const { after, before, describe, test } = require('node:test');
 
 const { UTENTE_A, UTENTE_B, chiama, accedi, chiudi } = require('./aiuto');
+const { creaCatalogoPubblico } = require('./helpers/catalogoPubblico');
 
-// Artisti che nel seed l'utente A non segue: il test li segue e alla fine
-// li rimette com'erano.
-const ARTISTA = 2;
-const ALTRO_ARTISTA = 4;
+// Artisti pubblici temporanei, eliminati per ID insieme ai loro follow.
+let ARTISTA, ALTRO_ARTISTA, fixture;
 
 let utenteA;
 let utenteB;
@@ -17,16 +16,13 @@ let utenteB;
 before(async () => {
     utenteA = await accedi(UTENTE_A);
     utenteB = await accedi(UTENTE_B);
+    fixture = await creaCatalogoPubblico({ completo: false });
+    [ARTISTA, ALTRO_ARTISTA] = fixture.artisti.map(a => a.id);
 });
 
 after(async () => {
-    for (const id of [ARTISTA, ALTRO_ARTISTA]) {
-        await chiama(`/artisti/${id}/segui`, {
-            metodo: 'DELETE',
-            sessione: utenteA,
-        });
-    }
-    await chiudi();
+    try { await fixture?.pulisci(); }
+    finally { await chiudi(); }
 });
 
 async function seguito(id, sessione) {

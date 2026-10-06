@@ -1,5 +1,5 @@
-// Ricerca con match parziale su nome artista e titolo brano (GET /ricerca).
-// Oltre al seed usa due artisti temporanei, inseriti e cancellati qui, per i
+// Ricerca pubblica per nome artista (GET /ricerca), senza risultati brano.
+// Oltre al seed usa tre artisti temporanei, inseriti e cancellati qui, per i
 // casi che i dati di prova non coprono (ordine, "%" nel nome).
 
 const assert = require('node:assert/strict');
@@ -7,8 +7,10 @@ const { after, before, describe, test } = require('node:test');
 
 // db di aiuto è condiviso nel processo, non proprietà del singolo test.
 // Chiuderlo solo nell'after finale del file principale in un worker isolato:
-// node --env-file=../.env.test --test --test-isolation=process test/ricerca.test.js
-if (require.main !== module || !process.execArgv.includes('--test-isolation=process')) {
+// npm test (isolamento esplicito, compatibile anche con Node 22).
+const isolamentoEsplicito = ['--test-isolation=process', '--experimental-test-isolation=process']
+    .some(flag => process.execArgv.includes(flag));
+if (require.main !== module || !isolamentoEsplicito) {
     throw new Error('RICERCA_RICHIEDE_WORKER_ISOLATO');
 }
 const guardia = require('./preparaAmbiente');
@@ -24,7 +26,7 @@ const causeTeardown = new WeakMap();
 
 // "Aaa Zqx" viene prima in ordine alfabetico ma contiene "zqx" solo a metà;
 // "Zqx 50% Bbb" inizia con "zqx": deve comparire per primo.
-const ARTISTI_TEMPORANEI = ['Aaa Zqx', 'Zqx 50% Bbb'];
+const ARTISTI_TEMPORANEI = ['Aaa Zqx', 'Zqx 50% Bbb', 'Écho Zqx'];
 
 async function cerca(q) {
     const risposta = await fetch(
@@ -34,7 +36,6 @@ async function cerca(q) {
 }
 
 const nomi = dati => dati.artisti.map(a => a.nome);
-const titoli = dati => dati.brani.map(b => b.titolo);
 
 before(async () => {
     const canarina = await verificaCanarina();
@@ -58,13 +59,6 @@ before(async () => {
     });
     adapter = await creaAdapterMysqlRegistro({ pool: poolPulizia, guardia, urlApi: URL_API });
     const baseline = await adapter.acquisisciBaseline();
-    const attesi = { genere: 4, artista: 6, album: 5, brano: 9, utente: 3,
-        playlist: 0, evento: 4, sessioni: 0, artista_genere: 5,
-        playlist_brano: 0, evento_artista: 5, utente_artista: 2 };
-    if (Object.entries(attesi).some(([tabella, totale]) => baseline[tabella].length !== totale) ||
-        JSON.stringify(baseline.utente.map(r => r.id).sort((a, b) => a - b)) !== '[1,2,3]') {
-        throw new Error('RICERCA_STATO_INIZIALE_INATTESO');
-    }
     registro = creaRegistro(baseline);
     for (const nome of ARTISTI_TEMPORANEI) {
         const [inserito] = await db.query('INSERT INTO artista (nome) VALUES (?)', [nome]);
@@ -117,36 +111,26 @@ after(async () => {
 
 describe('ricerca', () => {
     test('match parziale a metà parola', async () => {
-        const { dati } = await cerca('circ');
-
-        assert.deepEqual(nomi(dati), ['Nova Circuit']);
+        assert.deepEqual(nomi((await cerca('aa z')).dati), ['Aaa Zqx']);
     });
 
     test('ignora maiuscole e accenti', async () => {
-        assert.deepEqual(nomi((await cerca('NOVA')).dati), ['Nova Circuit']);
-        assert.deepEqual(titoli((await cerca('rété')).dati), ['Rete Oscura']);
+        assert.deepEqual(nomi((await cerca('ECHO')).dati), ['Écho Zqx']);
     });
 
-    test('artisti per nome e brani per titolo, in sezioni separate', async () => {
-        const { dati } = await cerca('lucent');
-
-        assert.deepEqual(nomi(dati), ['Lucent Wave']);
-        assert.deepEqual(titoli(dati), ['Portale Lucente']);
-        // Stessa forma di /brani/:id, con l'artista per il sottotitolo.
-        assert.equal(dati.brani[0].artista.nome, 'Lucent Wave');
-    });
-
-    test('i brani non sono cercati per nome artista', async () => {
-        const { dati } = await cerca('Nova Circuit');
-
-        assert.deepEqual(nomi(dati), ['Nova Circuit']);
-        assert.deepEqual(titoli(dati), []);
+    test('esclude artisti demo e titoli dei brani dalla ricerca pubblica', async () => {
+        for (const query of ['Nova Circuit', 'Lucent Wave', 'Rete Oscura', 'Portale Lucente']) {
+            assert.deepEqual((await cerca(query)).dati, { artisti: [], brani: [] });
+        }
+        const { dati } = await cerca('Écho');
+        assert.deepEqual(nomi(dati), ['Écho Zqx']);
+        assert.deepEqual(dati.brani, []);
     });
 
     test('prima chi inizia con il testo, poi chi lo contiene', async () => {
         const { dati } = await cerca('zqx');
 
-        assert.deepEqual(nomi(dati), ['Zqx 50% Bbb', 'Aaa Zqx']);
+        assert.deepEqual(nomi(dati), ['Zqx 50% Bbb', 'Aaa Zqx', 'Écho Zqx']);
     });
 
     test('% e _ sono caratteri normali, non jolly', async () => {

@@ -7,6 +7,9 @@
 -- Non eseguire in parallelo: lo schema non garantisce unicita sul nome.
 -- Bio e immagine omesse: restano NULL per le nuove righe.
 
+-- Il client MySQL dell'init Docker deve interpretare i nomi come UTF-8.
+SET NAMES utf8mb4;
+
 INSERT INTO artista (nome)
 SELECT candidato.nome FROM (SELECT 'Martin Garrix' AS nome) AS candidato
 LEFT JOIN artista AS esistente ON esistente.nome = candidato.nome

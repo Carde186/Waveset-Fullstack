@@ -65,7 +65,7 @@ Lo sviluppo principale su `http://localhost:5174` legge Maps dal `.env` locale d
 
 Le nuove pagine pubbliche sono `/esplora`, `/artisti/:id`, `/brani/:id` e `/album/:id`. La voce Esplora è disponibile nella barra anche senza sessione; il comportamento delle pagine di accesso e Area resta quello precedente.
 
-- Esplora legge `/api/generi` e `/api/artisti?genere_id=…`. Il genere filtra soltanto l'elenco degli artisti, mentre la ricerca `/api/ricerca?q=…` consulta tutto il catalogo locale, con sezioni Artisti e Brani.
+- Esplora legge `/api/generi` e `/api/artisti?genere_id=…`. Il genere filtra soltanto l'elenco degli artisti, mentre la ricerca `/api/ricerca?q=…` cerca per nome fra tutti gli artisti pubblici del catalogo locale.
 - Ricerca da 2 a 100 caratteri, debounce di 300 ms, caricamento, errore/riprova e risultati vuoti. Le risposte superate vengono ignorate anche dopo cambio filtro, cambio ID, svuotamento, smontaggio o ritorno a una ricerca precedente.
 - I dettagli collegano soltanto artista, album e brani effettivamente presenti nella risposta. Gestiscono 404, campi nulli, brani senza album, featuring separati e liste vuote. Gli eventi dell'artista collegano al dettaglio evento.
 - Il modulo `src/api/catalogo.ts` valida le risposte e normalizza snake_case/camelCase. Usa il client HTTP esistente, sempre sulla stessa origine, con sole GET per il catalogo.

@@ -22,7 +22,8 @@ function apri(rotte: Parameters<typeof simulaBackend>[0] = {}) {
     const pagina = renderizzaApp('/esplora');
     return { backend, pagina };
 }
-const campo = () => screen.getByRole('searchbox', { name: 'Cerca nel catalogo locale' });
+const campo = () => screen.getByRole('searchbox', { name: 'Cerca un artista' });
+const risultatiRicerca = () => within(screen.getByRole('region', { name: 'Risultati della ricerca' }));
 const cerca = (valore: string) => fireEvent.change(campo(), { target: { value: valore } });
 async function tempo(ms: number) {
     await act(async () => {
@@ -121,8 +122,9 @@ test('debounce di 300 ms, nessuna ricerca intermedia o filtro genere aggiunto', 
     expect(backend.di('GET', '/api/ricerca?q=nova')).toHaveLength(1);
     const risultati = within(screen.getByRole('region', { name: 'Risultati della ricerca' }));
     expect(risultati.getByRole('heading', { name: 'Artisti' })).toBeInTheDocument();
-    expect(risultati.getByRole('heading', { name: 'Brani' })).toBeInTheDocument();
-    expect(risultati.getByRole('link', { name: 'Voltaggio' })).toHaveAttribute('href', '/brani/11');
+    expect(risultati.getByRole('link', { name: 'Apri artista Nova Circuit' })).toHaveAttribute('href', '/artisti/1');
+    expect(risultati.queryByRole('heading', { name: 'Brani' })).not.toBeInTheDocument();
+    expect(risultati.queryByRole('link', { name: 'Voltaggio' })).not.toBeInTheDocument();
 });
 
 test('ricerca separata dal genere selezionato', async () => {
@@ -183,11 +185,11 @@ test('risposte ed errori di ricerche superate non sostituiscono il risultato cor
     await tempo(300);
     cerca('vo');
     await tempo(300);
-    await act(async () => seconda.risolvi(json(200, { artisti: [], brani: [BRANO] })));
-    expect(screen.getByRole('link', { name: 'Voltaggio' })).toBeInTheDocument();
+    await act(async () => seconda.risolvi(json(200, { artisti: ARTISTI, brani: [] })));
+    expect(risultatiRicerca().getByRole('link', { name: 'Apri artista Nova Circuit' })).toBeInTheDocument();
     await act(async () => prima.risolvi(json(500, {})));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Voltaggio' })).toBeInTheDocument();
+    expect(risultatiRicerca().getByRole('link', { name: 'Apri artista Nova Circuit' })).toBeInTheDocument();
 });
 
 test('ricerca A → B → A: un nuovo tentativo non mostra la vecchia risposta A', async () => {
@@ -197,23 +199,23 @@ test('ricerca A → B → A: un nuovo tentativo non mostra la vecchia risposta A
     let richiesteA = 0;
     apri({
         'GET /api/ricerca?q=no': () =>
-            ++richiesteA === 1 ? json(200, { artisti: [], brani: [BRANO] }) : secondaA.promessa,
+            ++richiesteA === 1 ? json(200, { artisti: ARTISTI, brani: [] }) : secondaA.promessa,
         'GET /api/ricerca?q=vo': () => rispostaB.promessa,
     });
     cerca('no');
     await tempo(300);
-    expect(screen.getByRole('link', { name: 'Voltaggio' })).toBeInTheDocument();
+    expect(risultatiRicerca().getByRole('link', { name: 'Apri artista Nova Circuit' })).toBeInTheDocument();
     cerca('vo');
     await tempo(300);
     cerca('no');
-    expect(screen.queryByRole('link', { name: 'Voltaggio' })).not.toBeInTheDocument();
+    expect(risultatiRicerca().queryByRole('link', { name: 'Apri artista Nova Circuit' })).not.toBeInTheDocument();
     await tempo(300);
     await act(async () =>
         secondaA.risolvi(
-            json(200, { artisti: [], brani: [{ ...BRANO, id: 12, titolo: 'Rete Oscura' }] }),
+            json(200, { artisti: [{ id: 2, nome: 'Alesso', immagine_url: null }], brani: [] }),
         ),
     );
-    expect(screen.getByRole('link', { name: 'Rete Oscura' })).toBeInTheDocument();
+    expect(risultatiRicerca().getByRole('link', { name: 'Apri artista Alesso' })).toBeInTheDocument();
     expect(richiesteA).toBe(2);
     await act(async () => rispostaB.risolvi(json(500, {})));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -231,8 +233,8 @@ test('svuotare o smontare annulla il debounce e ignora una risposta già in viag
     cerca('no');
     await tempo(300);
     cerca('');
-    await act(async () => risposta.risolvi(json(200, { artisti: [], brani: [BRANO] })));
-    expect(screen.queryByRole('link', { name: 'Voltaggio' })).not.toBeInTheDocument();
+    await act(async () => risposta.risolvi(json(200, { artisti: ARTISTI, brani: [] })));
+    expect(screen.queryByRole('region', { name: 'Risultati della ricerca' })).not.toBeInTheDocument();
     cerca('nu');
     pagina.unmount();
     await tempo(400);

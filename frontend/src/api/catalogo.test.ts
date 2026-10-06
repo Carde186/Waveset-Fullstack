@@ -51,8 +51,7 @@ test('ricerca: trim e codifica di caratteri speciali, senza parametro genere', a
         [`GET ${percorso}`]: json(200, { artisti: ARTISTI, brani: [BRANO] }),
     });
     const risultato = await cercaCatalogo(`  ${q}  `);
-    expect(risultato.brani[0]?.dataPubblicazione).toBe('2022-06-10');
-    expect(risultato.brani[0]?.album?.copertinaUrl).toBeNull();
+    expect(risultato).toEqual({ artisti: [{ id: 1, nome: 'Nova Circuit', immagineUrl: null }] });
     expect(backend.chiamate[0]?.percorso).not.toContain('genere');
 });
 
@@ -62,7 +61,7 @@ test('ricerca: meno di 2 o oltre 100 caratteri non inviano HTTP; 2 e 100 sono am
         'GET /api/ricerca?q=ab': json(200, { artisti: [], brani: [] }),
         [`GET /api/ricerca?q=${cento}`]: json(200, { artisti: [], brani: [] }),
     });
-    expect(await cercaCatalogo(' a ')).toEqual({ artisti: [], brani: [] });
+    expect(await cercaCatalogo(' a ')).toEqual({ artisti: [] });
     await expect(cercaCatalogo('a'.repeat(101))).rejects.toMatchObject({ stato: 400 });
     expect(backend.chiamate).toHaveLength(0);
     await cercaCatalogo('ab');
@@ -160,7 +159,7 @@ describe('risposte inattese rifiutate, mai convertite in un risultato vuoto', ()
     });
     test('ricerca e album richiedono liste e oggetti annidati validi', async () => {
         simulaBackend({
-            'GET /api/ricerca?q=ab': json(200, { artisti: [], brani: null }),
+            'GET /api/ricerca?q=ab': json(200, { artisti: null, brani: [] }),
             'GET /api/album/21': json(200, { ...ALBUM, brani: [{}] }),
         });
         await expect(cercaCatalogo('ab')).rejects.toBeInstanceOf(ErroreApi);

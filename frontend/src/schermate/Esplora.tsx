@@ -15,7 +15,7 @@ import { erroreCatalogo } from '../catalogo/formato';
 import { useRisorsa } from '../catalogo/useRisorsa';
 import { Bottone } from '../componenti/Bottone';
 import { CampoTesto } from '../componenti/CampoTesto';
-import { CartaArtista, CartaBrano } from '../componenti/Catalogo';
+import { CartaArtista } from '../componenti/Catalogo';
 import { StatoCaricamento, StatoErrore, StatoVuoto } from '../componenti/Stati';
 import { Vetrina } from '../componenti/Vetrina';
 import stile from './Catalogo.module.css';
@@ -35,8 +35,8 @@ function RisultatiRicerca({ query }: { query: string }) {
                 livelloTitolo={3}
             />
         );
-    const { artisti, brani } = stato.dati;
-    if (artisti.length === 0 && brani.length === 0)
+    const { artisti } = stato.dati;
+    if (artisti.length === 0)
         return (
             <StatoVuoto
                 occhiello={t('text.localSearch')}
@@ -50,27 +50,11 @@ function RisultatiRicerca({ query }: { query: string }) {
             <div className="sezione">
                 <h3>{t('text.artists')}</h3>
             </div>
-            {artisti.length ? (
-                <div className={stile.griglia}>
-                    {artisti.map((a) => (
-                        <CartaArtista key={a.id} artista={a} />
-                    ))}
-                </div>
-            ) : (
-                <p>{t('text.noArtistsFound')}</p>
-            )}
-            <div className="sezione">
-                <h3>{t('text.tracks')}</h3>
+            <div className={stile.griglia}>
+                {artisti.map((a) => (
+                    <CartaArtista key={a.id} artista={a} />
+                ))}
             </div>
-            {brani.length ? (
-                <div className={stile.griglia}>
-                    {brani.map((b) => (
-                        <CartaBrano key={b.id} brano={b} />
-                    ))}
-                </div>
-            ) : (
-                <p>{t('text.noTracksFound')}</p>
-            )}
             <p className={stile.nota}>{t('text.upTo20ArtistsAnd20')}</p>
         </>
     );

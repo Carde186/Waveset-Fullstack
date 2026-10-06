@@ -1,52 +1,31 @@
 // Eventi: elenco (tutti / seguiti), dettaglio, esclusione degli eventi
-// passati. Seed: l'utente A segue Nova Circuit e Lucent Wave, B nessuno.
+// passati. Catalogo pubblico temporaneo: A segue un artista, B nessuno.
 
 const assert = require('node:assert/strict');
 const { after, before, describe, test } = require('node:test');
 
-const { db, UTENTE_A, UTENTE_B, chiama, accedi, chiudi } = require('./aiuto');
-
-const TITOLO_PASSATO = 'Evento passato di prova';
-const TITOLO_IN_CODA = 'Evento in coda di prova';
+const { UTENTE_A, UTENTE_B, chiama, accedi, chiudi } = require('./aiuto');
+const { creaCatalogoPubblico } = require('./helpers/catalogoPubblico');
 
 let utenteA;
 let utenteB;
+let fixture;
+let passato;
+let inCoda;
 
 before(async () => {
     utenteA = await accedi(UTENTE_A);
     utenteB = await accedi(UTENTE_B);
 
-    // Evento di ieri con Nova Circuit (seguito da A): non deve comparire
-    // né in "tutti" né in "seguiti".
-    const [risultato] = await db.query(
-        `INSERT INTO evento (titolo, data_evento, luogo, citta, latitudine, longitudine)
-         VALUES (?, CURDATE() - INTERVAL 1 DAY, 'Luogo', 'Città', 45.0, 9.0)`,
-        [TITOLO_PASSATO],
-    );
-    await db.query(
-        'INSERT INTO evento_artista (evento_id, artista_id) VALUES (?, 1)',
-        [risultato.insertId],
-    );
-
-    // Evento futuro ma in coda (import Ticketmaster non ancora approvato
-    // dall'ADMIN): non deve comparire in nessuna lista pubblica.
-    const [risultatoInCoda] = await db.query(
-        `INSERT INTO evento (titolo, data_evento, luogo, citta, latitudine, longitudine, fonte, id_esterno, stato)
-         VALUES (?, CURDATE() + INTERVAL 1 DAY, 'Luogo', 'Città', 45.0, 9.0, 'ticketmaster', 'eventi-test-in-coda', 'in_coda')`,
-        [TITOLO_IN_CODA],
-    );
-    await db.query(
-        'INSERT INTO evento_artista (evento_id, artista_id) VALUES (?, 1)',
-        [risultatoInCoda.insertId],
-    );
+    fixture = await creaCatalogoPubblico({ utenteId: utenteA.utente.id });
+    const lineup = [fixture.artisti[0].id];
+    passato = await fixture.aggiungiEvento({ titolo: 'Evento passato di prova', giorni: -1, lineup });
+    inCoda = await fixture.aggiungiEvento({ titolo: 'Evento in coda di prova', giorni: 1, lineup, stato: 'in_coda' });
 });
 
 after(async () => {
-    await db.query('DELETE FROM evento WHERE titolo IN (?, ?)', [
-        TITOLO_PASSATO,
-        TITOLO_IN_CODA,
-    ]);
-    await chiudi();
+    try { await fixture?.pulisci(); }
+    finally { await chiudi(); }
 });
 
 const titoli = eventi => eventi.map(e => e.titolo);
@@ -56,19 +35,16 @@ describe('elenco eventi', () => {
         const { stato, dati } = await chiama('/eventi');
 
         assert.equal(stato, 200);
-        assert.deepEqual(titoli(dati), [
-            'Circuiti Live',
-            'Sunset Session',
-            'Notte Elettrica',
-            'Drum Night',
-        ]);
+        assert.deepEqual(titoli(dati), titoli(fixture.eventi));
         assert.equal(typeof dati[0].latitudine, 'number');
         assert.equal(typeof dati[0].longitudine, 'number');
 
-        const notte = dati.find(e => e.titolo === 'Notte Elettrica');
+        assert.equal(dati[3].latitudine, null);
+        assert.equal(dati[3].longitudine, null);
+        const notte = dati.find(e => e.id === fixture.eventi[2].id);
         assert.deepEqual(
             notte.lineup.map(a => a.nome),
-            ['Lucent Wave', 'Nova Circuit'],
+            fixture.artisti.map(a => a.nome),
         );
     });
 
@@ -78,13 +54,9 @@ describe('elenco eventi', () => {
             await chiama('/eventi?filtro=seguiti', { sessione: utenteA })
         ).dati;
 
-        assert.ok(!titoli(tutti).includes(TITOLO_IN_CODA));
-        assert.ok(!titoli(seguiti).includes(TITOLO_IN_CODA));
-
-        const inCoda = tutti
-            .concat(seguiti)
-            .find(e => e.titolo === TITOLO_IN_CODA);
-        assert.equal(inCoda, undefined);
+        assert.ok(!titoli(tutti).includes(inCoda.titolo));
+        assert.ok(!titoli(seguiti).includes(inCoda.titolo));
+        assert.equal((await chiama(`/eventi/${inCoda.id}`)).stato, 404);
     });
 
     test('gli eventi passati non compaiono', async () => {
@@ -93,8 +65,8 @@ describe('elenco eventi', () => {
             await chiama('/eventi?filtro=seguiti', { sessione: utenteA })
         ).dati;
 
-        assert.ok(!titoli(tutti).includes(TITOLO_PASSATO));
-        assert.ok(!titoli(seguiti).includes(TITOLO_PASSATO));
+        assert.ok(!titoli(tutti).includes(passato.titolo));
+        assert.ok(!titoli(seguiti).includes(passato.titolo));
     });
 
     test('seguiti: solo eventi con almeno un artista seguito', async () => {
@@ -102,7 +74,7 @@ describe('elenco eventi', () => {
             sessione: utenteA,
         });
 
-        assert.deepEqual(titoli(dati), ['Circuiti Live', 'Notte Elettrica']);
+        assert.deepEqual(titoli(dati), [fixture.eventi[0].titolo, fixture.eventi[2].titolo]);
     });
 
     test('seguiti: isolato per utente (B non segue nessuno)', async () => {
@@ -122,18 +94,22 @@ describe('elenco eventi', () => {
 
 describe('dettaglio evento', () => {
     test('con lineup completo', async () => {
-        const { stato, dati } = await chiama('/eventi/2');
+        const { stato, dati } = await chiama(`/eventi/${fixture.eventi[2].id}`);
 
         assert.equal(stato, 200);
-        assert.equal(dati.titolo, 'Notte Elettrica');
+        assert.equal(dati.titolo, fixture.eventi[2].titolo);
         assert.equal(dati.ora_evento, '23:30:00');
         assert.deepEqual(
             dati.lineup.map(a => a.nome),
-            ['Lucent Wave', 'Nova Circuit'],
+            fixture.artisti.map(a => a.nome),
         );
     });
 
     test('inesistente: 404', async () => {
         assert.equal((await chiama('/eventi/999999')).stato, 404);
+    });
+
+    test('un evento con artisti demo resta nascosto', async () => {
+        assert.equal((await chiama('/eventi/2')).stato, 404);
     });
 });

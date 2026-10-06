@@ -1,11 +1,13 @@
-// Solo waveset_test, fixture Test B esistente. Nessun nuovo utente/evento.
+// Solo waveset_test, utente Test B e catalogo pubblico temporaneo.
 // La canarina di aiuto.js verifica che HTTP e SQL usino lo stesso DB.
 const assert = require('node:assert/strict');
 const { before, after, test } = require('node:test');
 const { db, UTENTE_B, chiama, accedi, chiudi } = require('./aiuto');
-let sessione, utenteId, iniziale, artistaId;
+const { creaCatalogoPubblico } = require('./helpers/catalogoPubblico');
+let sessione, utenteId, iniziale, artistaId, fixture;
 const creati = new Set();
 before(async () => {
+    fixture = await creaCatalogoPubblico();
     const [[u]] = await db.query('SELECT id FROM utente WHERE email = ? AND ruolo = ?', [UTENTE_B.email, 'USER']);
     assert(u, 'Fixture Test B mancante');
     utenteId = u.id;
@@ -13,7 +15,7 @@ before(async () => {
     assert.equal(iniziale.length, 0, 'Test B contiene follow: fermarsi senza rimuoverli');
     const tutti = await chiama('/eventi?filtro=tutti');
     // Preferire un artista secondario per provare che conta tutta la lineup.
-    const candidato = tutti.dati.find(e => e.lineup.length > 1)?.lineup[1] ?? tutti.dati[0]?.lineup[0];
+    const candidato = tutti.dati.find(e => e.id === fixture.eventi[2].id)?.lineup[1];
     assert(candidato, 'Nessun artista con evento futuro disponibile per la prova');
     artistaId = candidato.id;
     sessione = await accedi(UTENTE_B);
@@ -27,7 +29,10 @@ after(async () => {
             const [finale] = await db.query('SELECT artista_id FROM utente_artista WHERE utente_id = ? ORDER BY artista_id', [utenteId]);
             assert.deepEqual(finale, iniziale, 'Follow iniziali non ripristinati');
         }
-    } finally { await chiudi(); }
+    } finally {
+        try { await fixture?.pulisci(); }
+        finally { await chiudi(); }
+    }
 });
 test('follow reale persistito, duplicato, eventi della lineup e unfollow idempotente', async () => {
     assert.deepEqual((await chiama('/eventi?filtro=seguiti', { sessione })).dati, []);

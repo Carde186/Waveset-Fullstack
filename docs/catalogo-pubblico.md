@@ -4,6 +4,8 @@ Per collegare i profili consulta la [guida Deezer](provider-artisti.md); per avv
 
 ## Generi e filtri
 
+`GET /api/ricerca?q=nome` cerca solo artisti pubblici per nome (2–100 caratteri, massimo 20 risultati). La ricerca è indipendente dal filtro genere; brani e pubblicazioni restano nella discografia del profilo. Il campo legacy `brani` della risposta rimane vuoto.
+
 `backend/src/catalogo/classificazione.json` assegna categorie editoriali ai 33 artisti del seed e a Carl Cox. Sono filtri locali, distinti dai generi eventualmente forniti da Deezer; un artista può avere più categorie.
 
 Dalla root, salva un backup del DB esistente e applica solo le associazioni mancanti:

@@ -1,14 +1,17 @@
 // Home collegata al follow: feed Novità (brani ed eventi degli artisti
 // seguiti), generi ordinati per affinità, "Esplora per genere" senza gli
-// artisti già seguiti. Seed: l'utente A segue Nova Circuit (1, House +
-// Techno) e Lucent Wave (3, Trance); l'utente B nessuno.
+// artisti già seguiti. A segue i demo del seed e un artista pubblico
+// temporaneo; B nessuno. I demo non entrano nei risultati pubblici.
 
 const assert = require('node:assert/strict');
 const { after, before, describe, test } = require('node:test');
 
 const { db, UTENTE_A, UTENTE_B, chiama, accedi, chiudi } = require('./aiuto');
+const { creaCatalogoPubblico } = require('./helpers/catalogoPubblico');
+const { DEMO } = require('../src/catalogo/pubblico');
 
-const SEGUITI_DA_A = [1, 3];
+let SEGUITI_DA_A;
+let fixture;
 
 let utenteA;
 let utenteB;
@@ -16,9 +19,14 @@ let utenteB;
 before(async () => {
     utenteA = await accedi(UTENTE_A);
     utenteB = await accedi(UTENTE_B);
+    fixture = await creaCatalogoPubblico({ utenteId: utenteA.utente.id });
+    SEGUITI_DA_A = [1, 3, fixture.artisti[0].id];
 });
 
-after(chiudi);
+after(async () => {
+    try { await fixture?.pulisci(); }
+    finally { await chiudi(); }
+});
 
 describe('Novità', () => {
     test('chi segue qualcuno: solo brani degli artisti seguiti', async () => {
@@ -34,7 +42,7 @@ describe('Novità', () => {
 
         assert.deepEqual(
             dati.eventi.map(e => e.titolo),
-            ['Circuiti Live', 'Notte Elettrica'],
+            [fixture.eventi[0].titolo, fixture.eventi[2].titolo],
         );
         assert.ok(
             dati.eventi.every(e =>
@@ -216,6 +224,7 @@ describe('Esplora per genere', () => {
              GROUP BY a.id, a.nome`,
         );
         const atteso = conteggi
+            .filter(r => !DEMO.includes(r.nome))
             .sort(
                 (x, y) =>
                     y.follower - x.follower || x.nome.localeCompare(y.nome),

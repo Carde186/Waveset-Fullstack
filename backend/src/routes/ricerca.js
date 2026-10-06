@@ -2,14 +2,13 @@ const express = require('express');
 
 const pool = require('../config/database');
 const { immaginiArtisti } = require('../artistiProvider/immagini');
-const formattaBrano = require('../utilita/formattaBrano');
 
 const { artistaPubblico } = require('../catalogo/pubblico');
 const router = express.Router();
 
 const LUNGHEZZA_MINIMA = 2;
 const LUNGHEZZA_MASSIMA = 100;
-const LIMITE_PER_SEZIONE = 20;
+const LIMITE_ARTISTI = 20;
 
 // In LIKE "%" (qualunque sequenza) e "_" (qualunque carattere) sono jolly: se
 // arrivassero dall'utente così come sono, cercare "%" restituirebbe tutto il
@@ -53,25 +52,12 @@ async function cerca(req, res) {
          WHERE ${artistaPubblico('artista')} AND nome LIKE ? ESCAPE '\\\\'
          ORDER BY nome LIKE ? ESCAPE '\\\\' DESC, nome
          LIMIT ?`,
-        [contiene, iniziaCon, LIMITE_PER_SEZIONE],
+        [contiene, iniziaCon, LIMITE_ARTISTI],
     );
 
-    // Brani cercati solo per titolo: cercando un artista lo si trova nella
-    // sezione Artisti, senza ripeterne qui tutti i brani.
-    const [brani] = await pool.query(
-        `SELECT b.id, b.titolo, b.data_pubblicazione, b.url_spotify, b.collaboratori,
-                a.id AS artista_id, a.nome AS artista_nome, a.immagine_url AS artista_immagine_url,
-                al.id AS album_id, al.titolo AS album_titolo, al.copertina_url AS album_copertina_url
-         FROM brano b
-         INNER JOIN artista a ON a.id = b.artista_id
-         LEFT JOIN album al ON al.id = b.album_id
-         WHERE ${artistaPubblico()} AND b.titolo LIKE ? ESCAPE '\\\\'
-         ORDER BY b.titolo LIKE ? ESCAPE '\\\\' DESC, b.titolo
-         LIMIT ?`,
-        [contiene, iniziaCon, LIMITE_PER_SEZIONE],
-    );
-
-    res.json({ artisti: await immaginiArtisti(artisti), brani: (await immaginiArtisti(brani, { campoId: 'artista_id', campoImmagine: 'artista_immagine_url' })).map(formattaBrano) });
+    // Campo vuoto mantenuto per i client precedenti: la ricerca riguarda
+    // esclusivamente gli artisti del catalogo pubblico.
+    res.json({ artisti: await immaginiArtisti(artisti), brani: [] });
 }
 
 router.get('/ricerca', cerca);

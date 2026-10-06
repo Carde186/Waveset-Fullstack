@@ -57,7 +57,6 @@ export interface Artista extends ArtistaSintetico {
 }
 export interface RisultatiRicerca {
     artisti: ArtistaSintetico[];
-    brani: Brano[];
 }
 
 // Unico confine di normalizzazione: le pagine non interpretano nomi SQL.
@@ -255,9 +254,9 @@ export async function elencaArtistiSeguiti(): Promise<ArtistaSintetico[]> {
 export async function cercaCatalogo(query: string): Promise<RisultatiRicerca> {
     const q = query.trim();
     if (q.length > MASSIMO_RICERCA) throw new ErroreApi(400);
-    if (q.length < MINIMO_RICERCA) return { artisti: [], brani: [] };
+    if (q.length < MINIMO_RICERCA) return { artisti: [] };
     const r = oggetto(await richiesta(`/ricerca?${new URLSearchParams({ q })}`));
-    return { artisti: lista(r.artisti, artistaElenco), brani: lista(r.brani, brano) };
+    return { artisti: lista(r.artisti, artistaElenco) };
 }
 export const leggiArtista = (n: number) => dettaglio('/artisti', n, artista);
 export const leggiBrano = (n: number) => dettaglio('/brani', n, brano);
