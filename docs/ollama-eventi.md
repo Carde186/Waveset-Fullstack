@@ -40,7 +40,7 @@ Compose prepara lo schema all'avvio. La migrazione è idempotente: non rimette i
 
 ## Contratto e regole di approvazione
 
-Il client usa `/api/chat` con JSON Schema, `stream:false`, `think:false`, temperatura 0 e massimo 512 token. La versione del prompt è `waveset-relazione-v3`. La risposta deve contenere esattamente:
+Il client usa `/api/chat` con JSON Schema, `stream:false`, `think:false`, temperatura 0 e massimo 512 token. La versione del prompt è `waveset-relazione-v4`. La risposta deve contenere esattamente:
 
 | Campo | Validazione |
 | --- | --- |
@@ -49,6 +49,8 @@ Il client usa `/api/chat` con JSON Schema, `stream:false`, `think:false`, temper
 | `artista_corrispondente` | Booleano. |
 | `possibile_duplicato` | Booleano. |
 | `motivazione` | Frase prevista dallo schema dinamico, massimo 400 caratteri. |
+
+Lo schema separa con `anyOf` le motivazioni di approvazione da quelle di rifiuto. Se i controlli backend rilevano requisiti mancanti, ammette solo il rifiuto con il motivo specifico. Una risposta contraddittoria resta rifiutata; il nuovo prompt provoca automaticamente la rivalutazione dei job, conservando lo storico.
 
 Per pubblicare, il backend richiede soglia superata, artista corrispondente, assenza di duplicati, profilo Deezer coerente e identità Ticketmaster confermata o corrispondenza esatta unica verificata. L'attraction deve comparire nell'evento con nome coerente.
 

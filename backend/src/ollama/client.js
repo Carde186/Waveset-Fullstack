@@ -46,9 +46,11 @@ function creaClient(config, fetchImpl = fetch) {
             const raw = r?.message?.content;
             if (typeof raw !== 'string' || !raw.trim() || r.done !== true) throw new ErroreOllama('OLLAMA_RISPOSTA_ASSENTE', false);
             const risposta = validaRisposta(raw);
-            if (!formato.properties.motivazione.enum.includes(JSON.parse(raw).motivazione)) throw new ErroreOllama('OLLAMA_MOTIVAZIONE_FUORI_SCHEMA', false, raw);
-            const positiva = formato.properties.motivazione.enum.find(m => m.includes('coerente con l\'identità Ticketmaster'));
-            if (risposta.decisione === 'approva' && risposta.motivazione !== positiva) throw new ErroreOllama('OLLAMA_MOTIVAZIONE_INCOERENTE', false, raw);
+            const varianti = formato.anyOf ?? [formato];
+            const motivazione = JSON.parse(raw).motivazione;
+            if (!varianti.some(v => v.properties.motivazione.enum.includes(motivazione))) throw new ErroreOllama('OLLAMA_MOTIVAZIONE_FUORI_SCHEMA', false, raw);
+            if (!varianti.some(v => v.properties.decisione.enum.includes(risposta.decisione) &&
+                v.properties.motivazione.enum.includes(motivazione))) throw new ErroreOllama('OLLAMA_MOTIVAZIONE_INCOERENTE', false, raw);
             return { raw, risposta };
         },
     };

@@ -3,7 +3,7 @@ require('./preparaAmbiente');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createHash } = require('node:crypto');
 const pool = require('../src/config/database');
 const { applicaSchema } = require('../src/ollama/schema');
 const { creaRepository, rivaluta } = require('../src/ollama/repository');
@@ -85,6 +85,29 @@ test('Ollama MySQL: migrazione idempotente, audit, pubblicazione, retry, lock, r
             const [[j]]=await pool.query('SELECT stato FROM ollama_evento_job WHERE evento_id=?',[cambiato]);assert.equal(j.stato,'da_valutare');
             const [[a]]=await pool.query('SELECT risposta_raw,decisione_modello,errore FROM ollama_evento_audit WHERE evento_id=?',[cambiato]);
             assert.equal(a.risposta_raw,JSON.stringify(risposta));assert.equal(a.decisione_modello,'approva');assert.equal(a.errore,'OLLAMA_INPUT_CAMBIATO');
+        });
+        await t.test('passaggio dal prompt v3 rivaluta automaticamente e conserva lo storico',async()=>{
+            const inputs=await preparaInput(pool,primo);
+            const precedente=createHash('sha256').update(JSON.stringify({modello:config.modello,prompt:'waveset-relazione-v3',
+                inputs:inputs.map(({eventiRilevanti,...v})=>v)})).digest('hex');
+            const [[prima]]=await pool.query('SELECT generazione FROM ollama_evento_job WHERE evento_id=?',[primo]);
+            const [storico]=await pool.query('SELECT * FROM ollama_evento_audit WHERE evento_id=? ORDER BY id',[primo]);
+            const [[fonte]]=await pool.query('SELECT snapshot FROM ticketmaster_evento_fonte WHERE evento_id=?',[primo]);
+            await pool.query('UPDATE ollama_evento_job SET input_hash=? WHERE evento_id=?',[precedente,primo]);
+            const completo=creaRepository(pool,config);
+            await completo.riconcilia();
+            const [[job]]=await pool.query('SELECT * FROM ollama_evento_job WHERE evento_id=?',[primo]);
+            assert.equal(job.generazione,prima.generazione+1);assert.equal(job.stato,'da_valutare');
+            assert.equal(job.input_hash,hash(inputs,config.modello));assert.notEqual(job.input_hash,precedente);
+            assert.equal(job.tentativi,0);assert.equal(job.errore,null);assert.equal(job.valutato_at,null);
+            assert.equal((await fetch(base+'/eventi/'+primo)).status,404);
+            const [conservato]=await pool.query('SELECT * FROM ollama_evento_audit WHERE evento_id=? ORDER BY id',[primo]);
+            assert.deepEqual(conservato,storico);
+            const [[dopo]]=await pool.query('SELECT snapshot FROM ticketmaster_evento_fonte WHERE evento_id=?',[primo]);
+            assert.deepEqual(dopo.snapshot,fonte.snapshot);
+            await completo.riconcilia();
+            const [[ripetuto]]=await pool.query('SELECT generazione FROM ollama_evento_job WHERE evento_id=?',[primo]);
+            assert.equal(ripetuto.generazione,job.generazione);
         });
     }finally{
         if(server) await new Promise(r=>server.close(r));

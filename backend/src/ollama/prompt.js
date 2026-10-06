@@ -1,4 +1,4 @@
-const VERSIONE_PROMPT = 'waveset-relazione-v3';
+const VERSIONE_PROMPT = 'waveset-relazione-v4';
 const schema = {
     type: 'object', additionalProperties: false,
     required: ['decisione', 'confidenza', 'artista_corrispondente', 'possibile_duplicato', 'motivazione'],
@@ -19,7 +19,7 @@ Verifica non_trovato/non_verificato senza attraction confermata coincidente: rif
 Possibile duplicato (stessa data e venue): rifiuta. Dati insufficienti, annullamento o contraddizioni: rifiuta. Generi e fan sono opzionali: la loro assenza non è un errore.
 Una decisione approva richiede artista_corrispondente=true, possibile_duplicato=false e confidenza elevata.
 Motivazione breve, specifica e basata SOLO sui dati ricevuti. Non affermare che il titolo contenga il nome artista se non lo contiene, né chiamare confermata una attraction non confermata. Nessuna spiegazione fuori dal JSON.
-La motivazione deve essere una delle frasi ammesse nello schema ricevuto, tutte riferite esclusivamente ai dati ricevuti. Scegli una frase coerente con la tua decisione.
+Lo schema separa approvazione e rifiuto: ogni decisione ha le proprie motivazioni ammesse, riferite esclusivamente ai dati ricevuti. Non combinare approva con una motivazione negativa, né rifiuta con una motivazione positiva.
 Restituisci esclusivamente un oggetto che rispetti il JSON Schema ricevuto.`;
 module.exports = { VERSIONE_PROMPT, schema, sistema };
 
@@ -36,11 +36,17 @@ function schemaPerInput(input) {
     ];
     const sicuro = applicaDecisione(input, { decisione: 'approva', confidenza: 1,
         artista_corrispondente: true, possibile_duplicato: false, motivazione: 'Verificato' }, 1);
-    if (sicuro.decisione === 'approva') {
-        const ids = input.verificaTicketmaster.attractionConfermata ? [input.verificaTicketmaster.attractionConfermata] : input.verificaTicketmaster.attractions.map(a => a.id);
-        const attraction = input.evento.attractions.find(a => ids.includes(a.id));
-        motivi.unshift(`Evento ${evento}: attraction ${attraction.id} coerente con l'identità Ticketmaster verificata di ${artista}; nessun duplicato rilevato.`);
-    }
-    return { ...schema, properties: { ...schema.properties, motivazione: { ...schema.properties.motivazione, enum: motivi } } };
+    const variante = (decisione, motivazioni) => ({ ...schema, properties: { ...schema.properties,
+        decisione: { ...schema.properties.decisione, enum: [decisione] },
+        motivazione: { ...schema.properties.motivazione, enum: motivazioni },
+    } });
+    if (sicuro.decisione !== 'approva') return variante('rifiuta', [sicuro.motivazione]);
+
+    const ids = input.verificaTicketmaster.attractionConfermata ? [input.verificaTicketmaster.attractionConfermata] : input.verificaTicketmaster.attractions.map(a => a.id);
+    const attraction = input.evento.attractions.find(a => ids.includes(a.id));
+    const positiva = `Evento ${evento}: attraction ${attraction.id} coerente con l'identità Ticketmaster verificata di ${artista}; nessun duplicato rilevato.`;
+    // anyOf è alla radice, senza properties: il convertitore di Ollama
+    // può così vincolare insieme decisione e motivazione in ciascun ramo.
+    return { anyOf: [variante('approva', [positiva]), variante('rifiuta', motivi)] };
 }
 module.exports.schemaPerInput = schemaPerInput;

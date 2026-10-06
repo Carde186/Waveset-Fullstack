@@ -18,7 +18,7 @@ test('configurazione obbligatoria, soglie e URL senza credenziali; modello confi
 });
 test('HTTP mock: readiness, Structured Outputs, nessuna chiamata reale e approva sopra soglia', async () => {
     const richieste = [];
-    const c = creaClient(config, async (url, opts) => { richieste.push({ url, opts }); return http(url.endsWith('/tags') ? { models: [{ name: config.modello }] } : { done: true, message: { content: JSON.stringify({ ...risposta, motivazione: JSON.parse(opts.body).format.properties.motivazione.enum[0] }) } }); });
+    const c = creaClient(config, async (url, opts) => { richieste.push({ url, opts }); return http(url.endsWith('/tags') ? { models: [{ name: config.modello }] } : { done: true, message: { content: JSON.stringify({ ...risposta, motivazione: JSON.parse(opts.body).format.anyOf[0].properties.motivazione.enum[0] }) } }); });
     assert.equal((await c.pronto()).pronto, true);
     const r = await c.valuta(input()); assert.equal(applicaDecisione(input(), r.risposta, .85).decisione, 'approva');
     const corpo = JSON.parse(richieste[1].opts.body); assert.deepEqual(corpo.format, schemaPerInput(input())); assert.equal(corpo.stream, false); assert.equal(corpo.think, false); assert.equal(corpo.options.temperature, 0); assert.equal(corpo.tools, undefined);
@@ -89,4 +89,51 @@ test('motivazione libera inventata non ammessa dal format causa rifiuto, anche c
     await assert.rejects(c.valuta(input()), e => e.codice === 'OLLAMA_MOTIVAZIONE_FUORI_SCHEMA' && e.temporaneo === false);
     const v = input(); v.evento.attractions = [];
     assert(!schemaPerInput(v).properties.motivazione.enum.some(m => m.includes('coerente con')));
+});
+
+test('regressione Pendulum: approva con motivazione negativa è escluso dallo schema e rifiutato dal client', async () => {
+    const v = input();
+    Object.assign(v.artista, { id: 29, nome: 'Pendulum', nomeProvider: 'Pendulum' });
+    v.verificaTicketmaster.attractions[0].nome = 'Pendulum';
+    Object.assign(v.evento, { id: 'Z7r9jZ1A7Pbba', titolo: 'PENDULUM - AGES 21+', data: '2026-10-08', venue: '45 East' });
+    v.evento.attractions[0].nome = 'Pendulum';
+    const contraddittoria = { decisione: 'approva', confidenza: 1, artista_corrispondente: true,
+        possibile_duplicato: false, motivazione: 'Relazione Pendulum / evento Z7r9jZ1A7Pbba: non sufficientemente sicura.' };
+    let formato;
+    const client = creaClient(config, async (_, opts) => {
+        formato = JSON.parse(opts.body).format;
+        return http({ done: true, message: { content: JSON.stringify(contraddittoria) } });
+    });
+    await assert.rejects(client.valuta(v), e => e.codice === 'OLLAMA_MOTIVAZIONE_INCOERENTE' && !e.temporaneo);
+    const varianti = formato.anyOf ?? [formato];
+    assert(!varianti.some(r => r.properties.decisione.enum.includes(contraddittoria.decisione) &&
+        r.properties.motivazione.enum.includes(contraddittoria.motivazione)), 'lo schema deve impedire la coppia osservata sul PC remoto');
+    assert(varianti.some(r => r.properties.decisione.enum.includes('rifiuta') &&
+        r.properties.motivazione.enum.includes(contraddittoria.motivazione)));
+});
+
+test('rifiuto coerente accettato; rifiuto con motivazione positiva resta errore tecnico', async () => {
+    const formato = schemaPerInput(input());
+    const positiva = formato.anyOf[0].properties.motivazione.enum[0];
+    const negativa = formato.anyOf[1].properties.motivazione.enum[0];
+    for (const motivazione of [negativa, positiva]) {
+        const client = creaClient(config, async () => http({ done: true,
+            message: { content: JSON.stringify({ ...risposta, decisione: 'rifiuta', motivazione }) } }));
+        if (motivazione === negativa) assert.equal((await client.valuta(input())).risposta.decisione, 'rifiuta');
+        else await assert.rejects(client.valuta(input()), e => e.codice === 'OLLAMA_MOTIVAZIONE_INCOERENTE');
+    }
+});
+
+test('profilo Deezer mancante: schema ammette solo rifiuta e indica il requisito mancante', async () => {
+    const v = input(); v.artista.providerExternalId = null;
+    let formato;
+    const client = creaClient(config, async (_, opts) => {
+        formato = JSON.parse(opts.body).format;
+        return http({ done: true, message: { content: JSON.stringify({ ...risposta, decisione: 'rifiuta',
+            motivazione: 'Profilo provider assente o nome artista incoerente.' }) } });
+    });
+    assert.equal((await client.valuta(v)).risposta.motivazione, 'Profilo provider assente o nome artista incoerente.');
+    assert.equal(formato.anyOf, undefined);
+    assert.deepEqual(formato.properties.decisione.enum, ['rifiuta']);
+    assert.deepEqual(formato.properties.motivazione.enum, ['Profilo provider assente o nome artista incoerente.']);
 });
