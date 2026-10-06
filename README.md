@@ -181,11 +181,12 @@ Su un database nuovo, il seed aggiunge 33 artisti elettronici reali con il solo 
 1. Accedi come ADMIN con le credenziali di `.env`.
 2. Apri **Gestione artisti** (`/admin/artisti`) e scegli un artista.
 3. Cerca il suo profilo su Deezer e **conferma** quello corretto (attenzione agli omonimi). Dopo la conferma diventano disponibili foto e discografia, quando presenti nella fonte.
+   Se Ticketmaster restituisce più identità con lo stesso nome, confronta i riferimenti disponibili, seleziona quella corretta e premi **Verifica identità Ticketmaster → Conferma e salva identità**. Questa scelta identifica l’artista; Ollama continua a valutare gli eventi.
 4. Il worker Ticketmaster cerca e importa gli eventi degli artisti presenti nel database locale, normalmente ogni 8 ore. Per non aspettare, lancia la sincronizzazione manuale:
    ```bash
    docker compose exec -T backend npm run eventi:sync
    ```
-5. Ollama deve essere attivo: valuta gli eventi e pubblica solo quelli sicuri. Gli eventi approvati compaiono in **Eventi**, con la mappa se Maps è configurato.
+5. Ollama deve essere attivo: valuta gli eventi e pubblica solo quelli sicuri. Gli eventi approvati compaiono in **Eventi**, con la mappa se Maps è configurato. Se la pagina è già aperta, premi **Aggiorna eventi** per vedere le nuove pubblicazioni.
 
 I collegamenti restano nel volume Docker locale: ripetere la procedura serve solo su un database nuovo.
 
@@ -291,7 +292,7 @@ docker compose exec -T backend npm run ollama:check
 docker compose exec -T backend npm run eventi:valida
 ```
 
-Consulta `/admin/eventi`, poi Eventi, dettaglio e mappa. I risultati dipendono dalla copertura Ticketmaster e dalla validazione. Riavvia con `docker compose stop` e `docker compose up -d`: account e collegamenti devono persistere.
+Consulta `/admin/eventi`, poi Eventi, dettaglio e mappa. Usa **Aggiorna eventi** per vedere le nuove pubblicazioni senza ricaricare la pagina. I risultati dipendono dalla copertura Ticketmaster e dalla validazione. Riavvia con `docker compose stop` e `docker compose up -d`: account e collegamenti devono persistere.
 
 Ferma prima `app/` con `docker compose stop`, poi da `suite/` esegui i comandi della sezione Test usando il `.env.test` già preparato: le due verifiche in sequenza riducono il consumo di memoria. Al termine ferma anche la suite con `docker compose --env-file .env.test -f docker-compose.test.yml stop`. I volumi restano disponibili per consultare gli esiti. Non eseguire questi comandi nella cartella originale.
 

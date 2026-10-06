@@ -7,7 +7,8 @@ Per avvio e chiavi consulta il [README](../README.md#avvio-locale). Deezer forni
 1. Accedi su `http://localhost:5174/admin/artisti` con l'ADMIN configurato in `.env`.
 2. Apri un artista e premi **Cerca artista**. Confronta nome, foto, fan e link Deezer per distinguere gli omonimi.
 3. Seleziona il risultato corretto, premi **Verifica collegamento**, poi **Conferma e salva**. Anche la sostituzione di un profilo richiede conferma esplicita.
-4. Usa **Risincronizza metadati** per aggiornare il profilo già scelto e **Ricontrolla Ticketmaster** per ripetere il controllo della presenza.
+4. Se Ticketmaster presenta omonimi, confronta profili e riferimenti, seleziona l’identità corretta e usa **Verifica identità Ticketmaster → Conferma e salva identità**. Puoi sostituire o rimuovere la scelta; gli eventi tornano alla valutazione automatica, senza cancellare lo storico.
+5. Usa **Risincronizza metadati** per aggiornare il profilo già scelto e **Ricontrolla Ticketmaster** per ripetere il controllo della presenza.
 
 La lista ADMIN include anche artisti senza collegamento e demo. La ricerca non crea artisti né collega automaticamente il primo risultato. Il seed 17 aggiunge soltanto i 33 nomi; su un volume esistente gli script di init non vengono rieseguiti.
 
@@ -36,6 +37,7 @@ Percorsi relativi a `/api/admin/artisti`. Richiedono sessione ADMIN; i POST rich
 | `GET /:id/provider` o `/:id/deezer` | Artista locale e collegamento, oppure null. |
 | `GET /:id/deezer/search?q=nome` | Profili candidati, senza scritture. |
 | `POST /:id/deezer/collegamento` | `external_id` e `versione_attesa` (null al primo link). |
+| `POST /:id/deezer/ticketmaster/collegamento` | `attraction_id` (null per rimuovere), `attraction_attesa` e `versione_attesa`. |
 | `POST /:id/deezer/sincronizza` | `versione_attesa` corrente. |
 | `POST /:id/deezer/ticketmaster` | `versione_attesa` corrente. |
 
@@ -43,7 +45,7 @@ Percorsi relativi a `/api/admin/artisti`. Richiedono sessione ADMIN; i POST rich
 
 Il controllo cerca le attraction per nome completo normalizzato. Gli esiti sono `trovato`, `non_trovato` e `non_verificato`; più identità corrispondenti producono `ambiguo=true`. La ricerca ha un budget di 5 secondi e massimo 3 pagine: errori o risultati incompleti danno `non_verificato`.
 
-La presenza di un'attraction **non garantisce eventi futuri**. Il controllo non modifica `artista.id_ticketmaster` e un errore non annulla il collegamento Deezer. L'esito è associato alla versione del profilo: risposte tardive non sovrascrivono un link sostituito.
+La presenza di un'attraction **non garantisce eventi futuri**. Il ricontrollo non modifica l’identità confermata e un errore non annulla il collegamento Deezer. Solo la conferma esplicita aggiorna `artista.id_ticketmaster`: il server verifica nuovamente il candidato, la versione del profilo e la scelta precedente. Un’identità non può essere assegnata a due artisti locali. L'esito è associato alla versione del profilo: risposte tardive non sovrascrivono un link sostituito.
 
 La sync eventi considera gli artisti locali, anche senza Deezer. Collegare prima i profili fornisce i dati necessari alla [validazione Ollama](ollama-eventi.md). Comandi di sincronizzazione nel [README](../README.md#comandi-utili).
 
