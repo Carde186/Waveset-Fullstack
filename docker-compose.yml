@@ -1,6 +1,33 @@
 name: waveset-fullstack
 
 services:
+    ollama:
+        image: ollama/ollama:0.35.1
+        environment:
+            OLLAMA_HOST: "0.0.0.0:11434"
+            OLLAMA_CONTEXT_LENGTH: "4096"
+        volumes:
+            - ollama_data:/root/.ollama
+        healthcheck:
+            test: ["CMD", "ollama", "list"]
+            interval: 5s
+            timeout: 5s
+            retries: 30
+        restart: unless-stopped
+
+    ollama-model:
+        image: ollama/ollama:0.35.1
+        environment:
+            OLLAMA_HOST: "http://ollama:11434"
+            OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+        entrypoint: ["/bin/sh", "-ec"]
+        command:
+            - 'ollama show "$$OLLAMA_MODEL" >/dev/null 2>&1 || ollama pull "$$OLLAMA_MODEL"'
+        depends_on:
+            ollama:
+                condition: service_healthy
+        restart: "no"
+
     mysql:
         image: mysql:8.4
         environment:
@@ -46,9 +73,9 @@ services:
         ports:
             - "127.0.0.1:${BACKEND_HOST_PORT:-3002}:3000"
         environment:
-            OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+            OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
             OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
-            OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-45000}
+            OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-120000}
             OLLAMA_SOGLIA_CONFIDENZA: ${OLLAMA_SOGLIA_CONFIDENZA:-0.85}
             OLLAMA_MAX_TENTATIVI: ${OLLAMA_MAX_TENTATIVI:-3}
             OLLAMA_CONCORRENZA: ${OLLAMA_CONCORRENZA:-1}
@@ -83,6 +110,8 @@ services:
             ARTISTI_PROVIDER: ${ARTISTI_PROVIDER:-deezer}
             DEEZER_TIMEOUT_MS: ${DEEZER_TIMEOUT_MS:-8000}
         depends_on:
+            ollama-model:
+                condition: service_completed_successfully
             ollama-schema:
                 condition: service_completed_successfully
             mysql:
@@ -195,20 +224,23 @@ services:
             DB_USER: ${DB_USER}
             DB_PASSWORD: ${DB_PASSWORD}
             ARTISTI_PROVIDER: ${ARTISTI_PROVIDER:-deezer}
-            OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+            OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
             OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
-            OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-45000}
+            OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-120000}
             OLLAMA_SOGLIA_CONFIDENZA: ${OLLAMA_SOGLIA_CONFIDENZA:-0.85}
             OLLAMA_MAX_TENTATIVI: ${OLLAMA_MAX_TENTATIVI:-3}
             OLLAMA_CONCORRENZA: ${OLLAMA_CONCORRENZA:-1}
             OLLAMA_INTERVALLO_MS: ${OLLAMA_INTERVALLO_MS:-30000}
             OLLAMA_LOTTO: ${OLLAMA_LOTTO:-20}
         depends_on:
+            ollama-model:
+                condition: service_completed_successfully
             ollama-schema:
                 condition: service_completed_successfully
         restart: unless-stopped
         stop_grace_period: 55s
 
 volumes:
+    ollama_data:
     mysql_data:
         name: waveset_fullstack_mysql_data

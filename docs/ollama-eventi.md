@@ -8,16 +8,16 @@ Per installazione, modello e avvio consulta il [README](../README.md#avvio-local
 
 | Variabile | Default o valore locale |
 | --- | --- |
-| `OLLAMA_URL` | Docker macOS: `http://host.docker.internal:11434`; backend sull'host: `http://localhost:11434`. |
-| `OLLAMA_MODEL` | `qwen3:4b`, da scaricare sull'host. |
-| `OLLAMA_TIMEOUT_MS` | 45000 |
+| `OLLAMA_URL` | `http://ollama:11434`, nella rete Compose. |
+| `OLLAMA_MODEL` | `qwen3:4b`, scaricato automaticamente da `ollama-model`. |
+| `OLLAMA_TIMEOUT_MS` | 120000 in Compose. |
 | `OLLAMA_SOGLIA_CONFIDENZA` | 0.85 |
 | `OLLAMA_MAX_TENTATIVI` | 3 |
 | `OLLAMA_CONCORRENZA` | 1, configurabile da 1 a 4. |
 | `OLLAMA_INTERVALLO_MS` | 30000 |
 | `OLLAMA_LOTTO` | 20 |
 
-Compose avvia `ollama-eventi` separatamente dalla sync Ticketmaster. Un lock MySQL consente un solo worker per DB; l'applicazione delle decisioni è seriale per controllare i duplicati. Le variabili Ollama sono solo server e il modello deve essere raggiungibile dai container.
+Compose avvia il server `ollama`, conserva il modello nel volume `ollama_data` e attende il download prima di avviare backend e `ollama-eventi`. Non espone la porta Ollama sull'host. Il worker è separato dalla sync Ticketmaster: un lock MySQL consente un solo worker per DB e l'applicazione delle decisioni è seriale. Le variabili Ollama sono solo server. Per un backend avviato direttamente sull'host, configura il suo server Ollama e usa `http://localhost:11434`.
 
 Dalla root, con stack già avviato:
 
@@ -68,4 +68,4 @@ Le API pubbliche richiedono `evento.stato='pubblicato'` e, per Ticketmaster, `jo
 
 Le suite standard simulano Ollama; i test di persistenza usano solo `waveset_test`, con fixture temporanee e worker fermo. Le prove con il modello reale sono separate da `npm test`.
 
-Implementazione in `backend/src/ollama/`; riferimenti ufficiali: [Structured Outputs](https://docs.ollama.com/capabilities/structured-outputs) e [Chat API](https://docs.ollama.com/api/chat).
+Implementazione in `backend/src/ollama/`; riferimenti ufficiali: [Docker](https://docs.ollama.com/docker), [Structured Outputs](https://docs.ollama.com/capabilities/structured-outputs) e [Chat API](https://docs.ollama.com/api/chat).

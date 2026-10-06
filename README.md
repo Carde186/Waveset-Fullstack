@@ -22,7 +22,7 @@ Waveset è un'app web per scoprire artisti di musica elettronica e i loro eventi
 
 ## Funzionalità
 
-- **Esplora:** catalogo di artisti reali, filtri per genere e prossimi eventi.
+- **Esplora:** ricerca degli artisti per nome, catalogo di artisti reali, filtri per genere e prossimi eventi.
 - **Profilo artista:** foto, biografia, fan su Deezer, 10 brani popolari e album, singoli ed EP con copertine e link Deezer.
 - **Eventi:** lista e dettaglio con copertine Ticketmaster, filtri per genere e artisti seguiti, conservati durante la navigazione.
 - **Mappa:** Google Maps con marker fotografici degli artisti, sincronizzati con la lista; modalità Standard, Scura, Satellite e Ibrida.
@@ -45,18 +45,11 @@ Waveset è un'app web per scoprire artisti di musica elettronica e i loro eventi
 
 ## Avvio locale
 
-Servono **Docker Desktop** e **Ollama** installati. Avvia Docker Desktop e l'app Ollama. Se Ollama non è già in esecuzione, avvialo in un terminale separato e lascialo aperto:
+Servono **Git**, **Docker Desktop** avviato e una connessione Internet per immagini Docker, modello e fonti esterne. Ollama viene eseguito da Compose: non occorre installarlo sull'host. Per `qwen3:4b` assegna almeno **8 GB di RAM a Docker Desktop**; la validazione su CPU può richiedere tempo.
 
 ```bash
-ollama serve
-```
-
-In un altro terminale scarica il modello locale consigliato e verifica che sia disponibile:
-
-```bash
-ollama pull qwen3:4b
-ollama list
-curl --fail http://localhost:11434/api/tags
+git clone https://github.com/Carde186/Waveset-Fullstack.git
+cd Waveset-Fullstack
 ```
 
 I comandi seguenti vanno eseguiti **dalla root del progetto**. Docker installa le dipendenze e costruisce backend e frontend: non serve avviare Vite separatamente.
@@ -69,7 +62,7 @@ I comandi seguenti vanno eseguiti **dalla root del progetto**. Docker installa l
 
 2. Compila `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `ADMIN_EMAIL` e `ADMIN_PASSWORD` (almeno 12 caratteri). Mantieni `ARTISTI_PROVIDER=deezer` e configura le chiavi Ticketmaster e Maps descritte sotto.
 
-   Con Docker su macOS usa `OLLAMA_URL=http://host.docker.internal:11434` e `OLLAMA_MODEL=qwen3:4b`. Con backend direttamente sul Mac, l'URL è `http://localhost:11434`. Hardware più potente può usare un modello più grande compatibile con il JSON richiesto.
+   Usa `OLLAMA_URL=http://ollama:11434` e `OLLAMA_MODEL=qwen3:4b`. Se aggiorni un vecchio `.env`, sostituisci l'URL precedente e imposta `OLLAMA_TIMEOUT_MS=120000`. Per prove su hardware limitato puoi scegliere `qwen3:0.6b`: consuma meno memoria, ma può produrre valutazioni meno accurate.
 
 3. Avvia lo stack:
 
@@ -77,7 +70,7 @@ I comandi seguenti vanno eseguiti **dalla root del progetto**. Docker installa l
    docker compose up --build
    ```
 
-   Il comando avvia MySQL, prepara gli schemi condivisi, crea l’ADMIN se assente e avvia frontend, backend e worker Ticketmaster/Ollama. Attendi che MySQL e frontend risultino sani; il controllo Ollama conferma URL e modello.
+   Il comando avvia MySQL e Ollama, scarica il modello se assente, prepara gli schemi, crea l’ADMIN e avvia frontend, backend e worker. Il primo download può richiedere diversi minuti; backend e frontend attendono il modello. I volumi conservano database e modello tra gli avvii.
 
 4. Apri **http://localhost:5174**. Per accedere come ADMIN usa le credenziali configurate precedentemente in `.env`; gli utenti possono registrarsi dall'app.
 
@@ -232,14 +225,14 @@ docker compose stop
 | I filtri per genere non mostrano gli artisti del seed | Esegui l'anteprima e l'applicazione di `catalogo:classifica`, come descritto in Avvio locale. |
 | La mappa non compare | Controlla chiave Maps, Map ID e referrer autorizzati. Dopo modifiche alle variabili `VITE_`, ricostruisci il frontend. |
 | Non compaiono nuovi eventi | Verifica la chiave Ticketmaster, esegui la sincronizzazione manuale e consulta il registro ADMIN degli eventi. La fonte potrebbe non avere eventi disponibili; quelli importati devono superare la validazione di Ollama. |
-| Ollama non risponde | Verifica che sia avviato, che il modello configurato sia installato e che `OLLAMA_URL` sia raggiungibile dal backend. |
+| Ollama non risponde | Controlla i log `ollama` e `ollama-model`, la RAM assegnata a Docker e `OLLAMA_URL=http://ollama:11434`. |
 
 Per controllare servizi, modello Ollama e log:
 
 ```bash
 docker compose ps
 docker compose exec -T backend npm run ollama:check
-docker compose logs --tail=50 backend ticketmaster-sync ollama-eventi
+docker compose logs --tail=50 backend ticketmaster-sync ollama ollama-model ollama-eventi
 ```
 
 Apri l'app usando **http://localhost:5174**: `http://127.0.0.1:5174` è un'origine diversa e non corrisponde alla configurazione predefinita della sessione browser.
@@ -277,6 +270,28 @@ docker compose --env-file .env.test -f docker-compose.test.yml --profile browser
 ```
 
 Se vuoi usare Maps in questo ambiente, configura i valori in `.env.test` e autorizza anche `http://localhost:5175/*` nei referrer della chiave.
+
+### Verifica isolata del primo avvio
+
+Con Python 3, dalla root prepara due copie temporanee dei sorgenti attuali:
+
+```bash
+python3 scripts/preparaVerificaIsolata.py
+```
+
+Il comando stampa una cartella con `app/` e `suite/`. Non avvia servizi: assegna progetti e volumi Docker nuovi, porte separate e password casuali nei file privati. `app/.env` riusa solo chiavi Ticketmaster/Maps e nome del modello; Ollama ha un server e un volume separati. La suite usa fonti simulate. Le porte devono essere libere: app 5175/3027/3327, suite 5275/3028/3328. Se 5175 è occupata, usa `--frontend-port=5274` e autorizza il relativo referrer Maps.
+
+Da `app/` segui Avvio locale, Primo avvio e Comandi utili; `.env` è già preparato. Avvia con `docker compose up -d --build` e apri la porta indicata. Le credenziali ADMIN sono in quel `.env`. Controlla registrazione, ricerca, generi, collegamento Deezer, follow e account su desktop/mobile. La sync è limitata a un artista per ciclo; per quello appena collegato usa il suo ID locale:
+
+```bash
+docker compose exec -T backend npm run eventi:sync -- --artisti=ID_ARTISTA --force
+docker compose exec -T backend npm run ollama:check
+docker compose exec -T backend npm run eventi:valida
+```
+
+Consulta `/admin/eventi`, poi Eventi, dettaglio e mappa. I risultati dipendono dalla copertura Ticketmaster e dalla validazione. Riavvia con `docker compose stop` e `docker compose up -d`: account e collegamenti devono persistere.
+
+Ferma prima `app/` con `docker compose stop`, poi da `suite/` esegui i comandi della sezione Test usando il `.env.test` già preparato: le due verifiche in sequenza riducono il consumo di memoria. Al termine ferma anche la suite con `docker compose --env-file .env.test -f docker-compose.test.yml stop`. I volumi restano disponibili per consultare gli esiti. Non eseguire questi comandi nella cartella originale.
 
 ## Limiti noti
 
