@@ -20,7 +20,7 @@ const dbPath = require.resolve('../src/config/database');
 require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: db };
 const creaApp = require('../src/app');
 const profilo = { externalId: '123', name: 'Deezer', provider: 'deezer', fan: null, storefront: '', url: 'https://www.deezer.com/artist/123', artwork: null, genres: [], syncedAt: '2026-10-03T10:00:00Z', versione: 1 };
-const service = Object.fromEntries(['leggi', 'cerca', 'collega', 'sincronizza', 'ricontrolla'].map(azione => [azione, async (...args) => {
+const service = Object.fromEntries(['leggi', 'cerca', 'collega', 'sincronizza', 'ricontrolla', 'confermaTicketmaster'].map(azione => [azione, async (...args) => {
     chiamate.push([azione, ...args]); if (guasto) throw guasto;
     return azione === 'leggi' ? { artista: { id: args[0], nome: 'Locale' }, collegamento: profilo } : azione === 'cerca' ? { risultati: [profilo] } : profilo;
 }]));
@@ -115,4 +115,15 @@ test('ADMIN: ricontrollo Ticketmaster e protezioni sessione/ruolo/CSRF', async (
     assert.equal((await chiama('/1/deezer/ticketmaster', 'POST', {}, { Cookie: '' })).status, 401);
     ruolo = 'USER'; assert.equal((await chiama('/1/deezer/ticketmaster', 'POST', {})).status, 403); ruolo = 'ADMIN';
     assert.equal((await chiama('/1/deezer/ticketmaster', 'POST', {}, { 'X-CSRF-Token': '' })).status, 403);
+});
+test('conferma identità Ticketmaster: route ADMIN, CSRF, origine e corpo preservato', async () => {
+    const path='/1/deezer/ticketmaster/collegamento';
+    const corpo={attraction_id:'tm-1',attraction_attesa:null,versione_attesa:1};
+    assert.equal((await chiama(path,'POST',corpo)).status,200);
+    assert.deepEqual(chiamate[0],['confermaTicketmaster',1,corpo]);
+    assert.equal((await chiama(path,'POST',corpo,{Cookie:''})).status,401);
+    ruolo='USER';assert.equal((await chiama(path,'POST',corpo)).status,403);ruolo='ADMIN';
+    assert.equal((await chiama(path,'POST',corpo,{'X-CSRF-Token':''})).status,403);
+    assert.equal((await chiama(path,'POST',corpo,{Origin:'https://estraneo.test'})).status,403);
+    assert.equal(chiamate.length,1);
 });

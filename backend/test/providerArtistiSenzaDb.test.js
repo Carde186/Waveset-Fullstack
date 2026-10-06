@@ -89,3 +89,48 @@ test('Persistenza: retry deadlock limitato, stessa versione e nessuna chiamata e
     const r = await creaBase(pool, 'deezer').salva(1, profilo, null);
     assert.equal(r.versione, 1); assert.equal(tentativi, 3); assert.equal(rollback, 2); assert.equal(rilasci, 3);
 });
+function identita() {
+    let esito={stato:'trovato',attractions:[{id:'tm-1',name:'Carl Cox'},{id:'tm-2',name:'Carl Cox'}],ambiguo:true,controllatoAt:new Date(0).toISOString()};
+    let link={...profilo,versione:1}, nome='Carl Cox', controlli=0;const scritture=[];
+    const repository={async artista(){return {id:1,nome};},async leggi(){return link;},
+        async confermaIdentita(...args){scritture.push(args);return {...esito,attractionConfermata:args[2]};}};
+    const service=creaService({repository,client:{},controllaTicketmaster:async()=>{controlli++;return esito;}});
+    return {service,scritture,get controlli(){return controlli;},set esito(v){esito=v;},set link(v){link=v;},set nome(v){nome=v;}};
+}
+test('identità Ticketmaster: ricontrollo prima di salvare candidato esplicito, mai scelta automatica',async()=>{
+    const fixture=identita();
+    const r=await fixture.service.confermaTicketmaster(1,{attraction_id:'tm-2',attraction_attesa:null,versione_attesa:1});
+    assert.equal(fixture.controlli,1);assert.equal(r.ticketmaster.attractionConfermata,'tm-2');
+    assert.equal(r.ticketmaster.ambiguo,true);assert.equal(fixture.scritture.length,1);
+    assert.deepEqual(fixture.scritture[0].slice(2,4),['tm-2',null]);
+});
+test('identità Ticketmaster: parametri, profilo assente/obsoleto, candidato rimosso e nome incoerente non salvano',async()=>{
+    for(const corpo of [{},{attraction_id:'tm-1',versione_attesa:1},
+        {attraction_id:'http://estraneo.test',attraction_attesa:null,versione_attesa:1},
+        {attraction_id:'tm-1',attraction_attesa:null,versione_attesa:1,extra:true}]){
+        const f=identita();await assert.rejects(f.service.confermaTicketmaster(1,corpo),e=>e.codice==='DEEZER_PARAMETRI');
+        assert.equal(f.scritture.length,0);assert.equal(f.controlli,0);
+    }
+    for(const caso of ['assente','obsoleto','rimosso','nome','guasto']){
+        const f=identita(), corpo={attraction_id:'tm-1',attraction_attesa:null,versione_attesa:1};
+        if(caso==='assente')f.link=null;
+        if(caso==='obsoleto')corpo.versione_attesa=2;
+        if(caso==='rimosso')corpo.attraction_id='tm-non-piu-presente';
+        if(caso==='nome')f.nome='Altro artista';
+        if(caso==='guasto')f.esito={stato:'non_verificato',attractions:[],ambiguo:false};
+        await assert.rejects(f.service.confermaTicketmaster(1,corpo));assert.equal(f.scritture.length,0);
+    }
+});
+test('rimozione identità esplicita disponibile anche se la fonte non risponde',async()=>{
+    const f=identita();const r=await f.service.confermaTicketmaster(1,{attraction_id:null,attraction_attesa:'tm-1',versione_attesa:1});
+    assert.equal(f.controlli,0);assert.equal(r.ticketmaster.attractionConfermata,null);
+    assert.deepEqual(f.scritture[0].slice(2),[null,'tm-1',null]);
+});
+test('metadati Ticketmaster: solo URL pubblici sicuri, nessuna credenziale né richiesta Spotify',()=>{
+    const {attraction}=require('../src/ticketmaster/attraction');
+    const r=attraction({id:'tm-1',name:'Carl Cox',url:'https://www.ticketmaster.com/artist/1',
+        externalLinks:{spotify:[{url:'https://open.spotify.com/artist/fixture'}]},classifications:[{primary:true,genre:{name:'Dance/Electronic'}}]});
+    assert.equal(r.genere,'Dance/Electronic');assert(r.spotify);assert(r.url);
+    for(const url of ['javascript:alert(1)','https://ticketmaster.com/?apikey=secret','https://user:pass@ticketmaster.com/','https://ticketmaster.com.estraneo.test/'])
+        assert.equal(attraction({id:'tm-1',name:'Carl Cox',url}).url,null);
+});

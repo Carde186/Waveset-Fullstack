@@ -11,7 +11,7 @@ function creaControllo({ env = process.env, client, ora = Date.now } = {}) {
             const fonte = client ?? creaClientTicketmaster({ chiave: env.TICKETMASTER_API_KEY, timeoutMs: 3000,
                 tentativi: 0, maxPagine: 3, maxRichieste: 3, pausaMs: 300, signal });
             const candidati = await fonte.cercaAttractions(nome);
-            const attractions = [...new Map(candidati.filter(a => normalizzaNome(a.name) === normalizzaNome(nome)).map(a => [a.id, { id: a.id, name: a.name }])).values()];
+            const attractions = [...new Map(candidati.filter(a => normalizzaNome(a.name) === normalizzaNome(nome)).map(a => [a.id, a])).values()];
             return { stato: attractions.length ? 'trovato' : 'non_trovato', attractions,
                 ambiguo: attractions.length > 1, controllatoAt };
         } catch {

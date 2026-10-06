@@ -11,7 +11,7 @@ function creaRepository(pool, provider = 'deezer', dopoSalvataggio) {
     const prefisso = 'DEEZER';
     return {
         async artista(id) {
-            const [[r]] = await pool.query('SELECT id, nome, immagine_url FROM artista WHERE id = ?', [id]);
+            const [[r]] = await pool.query('SELECT id, nome, immagine_url, id_ticketmaster FROM artista WHERE id = ?', [id]);
             if (!r) throw new ErroreProvider('ARTISTA_NON_TROVATO', 404);
             return r;
         },

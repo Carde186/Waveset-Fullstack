@@ -1,4 +1,5 @@
 const BASE = 'https://app.ticketmaster.com/discovery/v2/';
+const { attraction } = require('../ticketmaster/attraction');
 class ErroreTicketmaster extends Error {
     constructor(codice, retrySec = 0) {
         super(`Ticketmaster: ${codice}`); // Mai URL, chiave o corpo remoto nei log.
@@ -75,7 +76,7 @@ function creaClientTicketmaster({
                 if (!Array.isArray(elementi) && !(elementi === undefined && dati.page?.totalElements === 0)) throw new ErroreTicketmaster('RISPOSTA_NON_VALIDA');
                 for (const r of elementi ?? []) {
                     if (!r || typeof r.id !== 'string' || !/^[\w-]{1,64}$/.test(r.id) || typeof r.name !== 'string' || !r.name.trim()) throw new ErroreTicketmaster('RISPOSTA_NON_VALIDA');
-                    risultati.set(r.id, { id: r.id, name: r.name });
+                    risultati.set(r.id, attraction(r));
                 }
                 const pagine = dati.page?.totalPages;
                 if (pagine !== undefined && (!Number.isInteger(pagine) || pagine < 0)) throw new ErroreTicketmaster('RISPOSTA_NON_VALIDA');

@@ -8,6 +8,10 @@ const messaggi = {
     DEEZER_LINK_ASSENTE: 'Nessun collegamento Deezer confermato.',
     DEEZER_CONFLITTO: 'Il collegamento è cambiato. Ricaricare prima di confermare.',
     DEEZER_GIA_COLLEGATO: 'Questo artista Deezer è già collegato a un altro artista Waveset.',
+    TICKETMASTER_IDENTITA_INVALIDA: 'Identità Ticketmaster non trovata tra i candidati attuali o nome artista incoerente.',
+    TICKETMASTER_NON_VERIFICATO: 'Ticketmaster non disponibile: impossibile verificare la scelta.',
+    TICKETMASTER_CONFLITTO: 'Identità Ticketmaster modificata. Ricaricare prima di confermare.',
+    TICKETMASTER_GIA_COLLEGATO: 'Questa identità Ticketmaster è già collegata a un altro artista Waveset.',
 };
 function creaRouteAdminArtisti({ services = {}, env = process.env, db = require('../../config/database') } = {}) {
     const router = express.Router();
@@ -47,6 +51,7 @@ function creaRouteAdminArtisti({ services = {}, env = process.env, db = require(
         router.post(`/:id/${percorso}/collegamento`, gestisci(req => service(provider).collega(Number(req.params.id), req.body)));
         router.post(`/:id/${percorso}/sincronizza`, gestisci(req => service(provider).sincronizza(Number(req.params.id), req.body)));
         router.post(`/:id/${percorso}/ticketmaster`, gestisci(req => service(provider).ricontrolla(Number(req.params.id), req.body)));
+        router.post(`/:id/${percorso}/ticketmaster/collegamento`, gestisci(req => service(provider).confermaTicketmaster(Number(req.params.id), req.body)));
     }
     return router;
 }
