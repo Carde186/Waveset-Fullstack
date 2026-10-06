@@ -56,12 +56,14 @@ function EventiCaricati({ genereId, filtro, utenteId }: { genereId?: number; fil
     const { riprova: controllaSessione } = useAutenticazione();
     const carica = useCallback(() => elencaEventi(filtro, genereId), [filtro, genereId]);
     const { stato, riprova } = useRisorsa(`eventi:${filtro}:${genereId ?? 'tutti'}:${filtro === 'seguiti' ? utenteId : 'pubblico'}`, carica);
-    if (stato.tipo === 'caricamento') return <StatoCaricamento testo={t('text.loadingEvents')} livelloTitolo={2} />;
-    if (stato.tipo === 'errore' && stato.causa instanceof ErroreApi && stato.causa.stato === 401) return <StatoErrore titolo={t('text.yourSessionIsNoLongerValid2')} messaggio={<Bottone onClick={() => void controllaSessione()}>{t('text.checkYourSession')}</Bottone>} suRiprova={riprova} livelloTitolo={2} />;
-    if (stato.tipo === 'errore') return <StatoErrore titolo={t('text.eventsAreUnavailable')} messaggio={erroreCatalogo(stato.causa)} suRiprova={riprova} livelloTitolo={2} />;
-    if (!stato.dati.length) return <StatoVuoto occhiello={t('text.events')} titolo={t('text.noUpcomingEvents')}
-        messaggio={t(filtro === 'seguiti' ? 'events.emptyFollowed' : genereId === undefined ? 'events.empty' : 'events.emptyGenre')} livelloTitolo={2} />;
-    return <Elenco eventi={stato.dati} genereId={genereId} filtro={filtro} />;
+    const contenuto = stato.tipo === 'caricamento' ? <StatoCaricamento testo={t('text.loadingEvents')} livelloTitolo={2} />
+        : stato.tipo === 'errore' ? stato.causa instanceof ErroreApi && stato.causa.stato === 401
+            ? <StatoErrore titolo={t('text.yourSessionIsNoLongerValid2')} messaggio={<Bottone onClick={() => void controllaSessione()}>{t('text.checkYourSession')}</Bottone>} suRiprova={riprova} livelloTitolo={2} />
+            : <StatoErrore titolo={t('text.eventsAreUnavailable')} messaggio={erroreCatalogo(stato.causa)} suRiprova={riprova} livelloTitolo={2} />
+        : !stato.dati.length ? <StatoVuoto occhiello={t('text.events')} titolo={t('text.noUpcomingEvents')}
+            messaggio={t(filtro === 'seguiti' ? 'events.emptyFollowed' : genereId === undefined ? 'events.empty' : 'events.emptyGenre')} livelloTitolo={2} />
+        : <Elenco eventi={stato.dati} genereId={genereId} filtro={filtro} />;
+    return <><p><Bottone variante="contorno" disabled={stato.tipo === 'caricamento'} onClick={riprova}>{t('events.refresh')}</Bottone></p>{contenuto}</>;
 }
 
 export function Eventi() {

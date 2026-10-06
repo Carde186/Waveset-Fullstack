@@ -1,9 +1,11 @@
 import { ErroreApi, richiesta } from './client';
 
 export type Provider = 'deezer';
+export interface AttractionTicketmaster { id: string; name: string; url: string | null; spotify: string | null; genere: string | null }
 export interface PresenzaTicketmaster {
     stato: 'trovato' | 'non_trovato' | 'non_verificato';
-    attractions: { id: string; name: string }[];
+    attractions: AttractionTicketmaster[];
+    attractionConfermata: string | null;
     ambiguo: boolean;
     controllatoAt: string | null;
 }
@@ -56,10 +58,26 @@ function collegamento(v: unknown): LinkProvider {
     if (!Number.isInteger(r.versione) || Number(r.versione) < 1 || !['trovato', 'non_trovato', 'non_verificato'].includes(String(tm.stato)) ||
         typeof tm.ambiguo !== 'boolean' || !Array.isArray(tm.attractions) ||
         (tm.controllatoAt !== null && (typeof tm.controllatoAt !== 'string' || !Number.isFinite(Date.parse(tm.controllatoAt))))) throw new ErroreApi(200);
-    const attractions = tm.attractions.map(a => { const d = oggetto(a); return { id: testo(d.id), name: testo(d.name) }; });
+    const idAttraction = (v: unknown) => {
+        const id = testo(v); if (!/^[\w-]{1,64}$/.test(id)) throw new ErroreApi(200); return id;
+    };
+    const linkAttraction = (v: unknown, domini: string[]) => {
+        if (v === undefined || v === null) return null;
+        const link = url(v, domini), u = new URL(link);
+        if (u.search || u.hash) throw new ErroreApi(200);
+        return link;
+    };
+    const attractions = tm.attractions.map(a => {
+        const d = oggetto(a);
+        return { id: idAttraction(d.id), name: testo(d.name), genere: d.genere == null ? null : testo(d.genere),
+            url: linkAttraction(d.url, ['ticketmaster.com','ticketmaster.ca','ticketmaster.co.uk','ticketmaster.com.au',
+                'ticketmaster.co.nz','ticketmaster.de','ticketmaster.fr','ticketmaster.it','ticketmaster.es','ticketmaster.nl']),
+            spotify: linkAttraction(d.spotify, ['open.spotify.com']) };
+    });
     if ((tm.stato === 'trovato') !== (attractions.length > 0) || tm.ambiguo !== (attractions.length > 1)) throw new ErroreApi(200);
     return { ...profilo(r), versione: r.versione as number, ticketmaster: { stato: tm.stato as PresenzaTicketmaster['stato'], attractions,
-        ambiguo: tm.ambiguo, controllatoAt: tm.controllatoAt as string | null } };
+        ambiguo: tm.ambiguo, controllatoAt: tm.controllatoAt as string | null,
+        attractionConfermata: tm.attractionConfermata == null ? null : idAttraction(tm.attractionConfermata) } };
 }
 function percorso(id: number, p?: Provider): string {
     if (!Number.isInteger(id) || id <= 0 || id > 2147483647) throw new ErroreApi(400);
@@ -100,4 +118,8 @@ export async function sincronizzaProvider(id: number, p: Provider, versione: num
 }
 export async function ricontrollaTicketmaster(id: number, p: Provider, versione: number): Promise<LinkProvider> {
     return collegamento(await richiesta(`${percorso(id, p)}/ticketmaster`, { metodo: 'POST', corpo: { versione_attesa: versione } }));
+}
+export async function confermaTicketmaster(id: number, p: Provider, attraction: string | null, attesa: string | null, versione: number): Promise<LinkProvider> {
+    return collegamento(await richiesta(`${percorso(id, p)}/ticketmaster/collegamento`, { metodo: 'POST',
+        corpo: { attraction_id: attraction, attraction_attesa: attesa, versione_attesa: versione } }));
 }

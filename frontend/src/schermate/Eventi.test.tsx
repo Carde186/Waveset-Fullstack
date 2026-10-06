@@ -10,6 +10,41 @@ const UNO = { id: 1, titolo: 'Notte Elettrica', data_evento: '2027-02-13', ora_e
 const nomeFiltro = (filtro: string) => filtro.includes('genere_id=1') ? 'Techno' : filtro.includes('genere_id=2') ? 'House' : filtro.startsWith('seguiti') ? 'Artisti seguiti' : 'Tutti';
 const DUE = { ...UNO, id: 2, titolo: 'Alba', latitudine: null, longitudine: null, lineup: [] };
 
+test.each(['tutti', 'tutti&genere_id=1', 'seguiti&genere_id=1'])('aggiorna eventi dopo la pubblicazione conserva il filtro %s e impedisce richieste duplicate', async filtro => {
+    const sospesa = differita<Response>();let letture = 0;
+    const percorso = `/api/eventi?filtro=${filtro}`;
+    const backend = simulaBackend({ 'GET /api/auth/io': json(200, sessioneDi()),
+        [`GET ${percorso}`]: () => ++letture === 1 ? json(200, []) : sospesa.promessa });
+    renderizzaApp(`/eventi?filtro=${filtro}`);
+    await screen.findByRole('heading', { name: 'Nessun evento in arrivo.' });
+    const user = userEvent.setup();
+    await user.dblClick(screen.getByRole('button', { name: 'Aggiorna eventi' }));
+    expect(screen.getByRole('button', { name: 'Aggiorna eventi' })).toBeDisabled();
+    expect(backend.di('GET', percorso)).toHaveLength(2);
+    sospesa.risolvi(json(200, [DUE]));
+    await screen.findByRole('article', { name: 'Alba' });
+    expect(screen.getByRole('button', { name: nomeFiltro(filtro) })).toHaveAttribute('aria-pressed', 'true');
+    expect(backend.chiamate.every(c => c.metodo === 'GET')).toBe(true);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Lingua' }), 'en');
+    expect(screen.getByRole('button', { name: 'Refresh events' })).toBeEnabled();
+    expect(backend.di('GET', percorso)).toHaveLength(2);
+});
+
+test('cambio filtro durante aggiornamento ignora la risposta precedente', async () => {
+    const sospesa = differita<Response>();let letture = 0;
+    simulaBackend({ 'GET /api/auth/io': SESSIONE_NON_VALIDA(),
+        'GET /api/eventi?filtro=tutti': () => ++letture === 1 ? json(200, []) : sospesa.promessa,
+        'GET /api/eventi?filtro=tutti&genere_id=1': json(200, [DUE]) });
+    renderizzaApp('/eventi');const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Aggiorna eventi' }));
+    await waitFor(() => expect(letture).toBe(2));
+    await user.click(screen.getByRole('button', { name: 'Techno' }));
+    await screen.findByRole('article', { name: 'Alba' });
+    await act(async () => sospesa.risolvi(json(200, [UNO])));
+    expect(screen.getByRole('article', { name: 'Alba' })).toBeInTheDocument();
+    expect(screen.queryByRole('article', { name: 'Notte Elettrica' })).not.toBeInTheDocument();
+});
+
 test.each(['/eventi', '/eventi/1'])('foto lineup su %s: presente, errore e segnaposto', async percorso => {
     const foto = 'https://cdn-images.dzcdn.net/images/artist/test/250x250.jpg';
     const evento = { ...UNO, lineup: [{ ...UNO.lineup[0], immagine_url: foto }, { id: 5, nome: 'Secondario', immagine_url: null }] };

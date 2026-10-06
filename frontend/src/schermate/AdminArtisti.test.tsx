@@ -198,3 +198,84 @@ test('Deezer: errore e vuoto distinti, omonimi Ticketmaster senza scelta automat
     const user = await cerca(); await screen.findByText('Limite di richieste raggiunto. Riprova più tardi.');
     await user.click(screen.getByRole('button', { name: 'Cerca artista' })); await screen.findByText('Nessun artista trovato. Prova un altro nome.');
 });
+
+const bunt = { ...deezer, name: 'BUNT.', versione: 1, ticketmaster: { ...tm, ambiguo: true, attractionConfermata: null,
+    attractions: [{ id: 'tm-a', name: 'BUNT.', url: 'https://www.ticketmaster.com/artist/1',
+        spotify: 'https://open.spotify.com/artist/fixture', genere: 'Dance/Electronic' }, { id: 'tm-b', name: 'BUNT.' }] } };
+const identitaPath = `${percorso}/ticketmaster/collegamento`;
+function apriBunt(extra: Parameters<typeof simulaBackend>[0] = {}) {
+    return apri({ 'GET /api/admin/artisti/5/provider': json(200, { provider: 'deezer', artista: { ...artista, nome: 'BUNT.' }, collegamento: bunt }), ...extra });
+}
+test('ricontrollo Ticketmaster fallito mostra un errore e conserva identità e profilo, poi consente il retry', async () => {
+    let tentativi = 0;
+    const corrente = { ...bunt, ticketmaster: { ...bunt.ticketmaster, attractionConfermata: 'tm-a' } };
+    const backend = apriBunt({ 'GET /api/admin/artisti/5/provider': json(200, { provider: 'deezer', artista, collegamento: corrente }),
+        [`POST ${percorso}/ticketmaster`]: () => json(200, ++tentativi === 1
+            ? { ...corrente, ticketmaster: { ...corrente.ticketmaster, stato: 'non_verificato', ambiguo: false, attractions: [] } }
+            : corrente) });
+    const user = userEvent.setup();await user.click(await screen.findByRole('button', { name: 'Ricontrolla Ticketmaster' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Impossibile verificare Ticketmaster');
+    expect(screen.queryByText('Controllo Ticketmaster aggiornato.')).not.toBeInTheDocument();
+    expect(screen.getByText('Identità Ticketmaster confermata: tm-a')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Apri su Deezer ↗' })).toHaveAttribute('href', corrente.url);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Lingua' }), 'en');
+    expect(screen.getByRole('alert')).toHaveTextContent('Unable to check Ticketmaster');
+    await user.click(screen.getByRole('button', { name: 'Recheck Ticketmaster' }));
+    await screen.findByText('Ticketmaster check updated.');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(backend.di('POST', identitaPath)).toHaveLength(0);
+});
+test('identità Ticketmaster: candidati con riferimenti, nessuna preselezione, annulla e conferma con CSRF', async () => {
+    const backend = apriBunt({ [`POST ${identitaPath}`]: json(200, { ...bunt, ticketmaster: { ...bunt.ticketmaster, attractionConfermata: 'tm-a' } }) });
+    const user = userEvent.setup();
+    const candidato = await screen.findByRole('radio', { name: 'Seleziona BUNT. · tm-a' });
+    expect(candidato).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Seleziona BUNT. · tm-b' })).not.toBeChecked();
+    expect(screen.getByRole('link', { name: 'Apri il profilo Ticketmaster ↗' })).toHaveAttribute('href', bunt.ticketmaster.attractions[0]!.url);
+    expect(screen.getByRole('link', { name: 'Apri il riferimento Spotify ↗' })).toHaveAttribute('rel', 'noopener noreferrer');
+    await user.click(candidato); await user.click(screen.getByRole('button', { name: 'Verifica identità Ticketmaster' }));
+    expect(screen.getByText(/Confermi che il profilo tm-a corrisponde a BUNT/)).toBeInTheDocument();
+    expect(backend.di('POST', identitaPath)).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Annulla' }));
+    expect(backend.di('POST', identitaPath)).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Verifica identità Ticketmaster' }));
+    await user.click(screen.getByRole('button', { name: 'Conferma e salva identità' }));
+    await screen.findByText('Identità Ticketmaster confermata: tm-a');
+    expect(backend.di('POST', identitaPath)[0]?.corpo).toEqual({ attraction_id: 'tm-a', attraction_attesa: null, versione_attesa: 1 });
+    expect(backend.di('POST', identitaPath)[0]?.intestazioni['X-CSRF-Token']).toBe(CSRF);
+    expect(screen.queryByText(/Più attraction/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Approva evento/ })).not.toBeInTheDocument();
+});
+test('identità Ticketmaster: doppio click, conflitto conserva il dato e ricarica prima di una nuova scelta', async () => {
+    const sospesa = differita<Response>();
+    const backend = apriBunt({ [`POST ${identitaPath}`]: () => sospesa.promessa });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('radio', { name: 'Seleziona BUNT. · tm-a' }));
+    await user.click(screen.getByRole('button', { name: 'Verifica identità Ticketmaster' }));
+    await user.dblClick(screen.getByRole('button', { name: 'Conferma e salva identità' }));
+    expect(backend.di('POST', identitaPath)).toHaveLength(1);
+    sospesa.risolvi(json(409, { codice: 'TICKETMASTER_CONFLITTO' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Il collegamento è stato modificato');
+    await user.click(screen.getByRole('button', { name: 'Ricarica collegamento' }));
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Conferma identità Ticketmaster' })).not.toBeInTheDocument());
+    expect(backend.di('GET', '/api/admin/artisti/5/provider')).toHaveLength(2);
+});
+test('identità Ticketmaster: rimozione esplicita, stato fonte indisponibile e testi IT/EN', async () => {
+    const confermata = { ...bunt, ticketmaster: { ...bunt.ticketmaster, stato: 'non_verificato', ambiguo: false, attractions: [], attractionConfermata: 'tm-a' } };
+    const backend = apriBunt({ 'GET /api/admin/artisti/5/provider': json(200, { provider: 'deezer', artista, collegamento: confermata }),
+        [`POST ${identitaPath}`]: json(200, { ...confermata, ticketmaster: { ...confermata.ticketmaster, attractionConfermata: null } }) });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Rimuovi identità confermata' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Lingua' }), 'en');
+    expect(screen.getByRole('heading', { name: 'Confirm Ticketmaster identity' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Confirm and save identity' }));
+    await screen.findByText('Ticketmaster identity updated. Events will be reevaluated automatically.');
+    expect(backend.di('POST', identitaPath)[0]?.corpo).toEqual({ attraction_id: null, attraction_attesa: 'tm-a', versione_attesa: 1 });
+    expect(screen.queryByText('Confirmed Ticketmaster identity: tm-a')).not.toBeInTheDocument();
+});
+test('identità Ticketmaster: URL arbitrari nei candidati non vengono renderizzati', async () => {
+    apriBunt({ 'GET /api/admin/artisti/5/provider': json(200, { provider: 'deezer', artista, collegamento: { ...bunt,
+        ticketmaster: { ...bunt.ticketmaster, attractions: [{ id: 'tm-a', name: 'BUNT.', url: 'javascript:alert(1)' }], ambiguo: false } } }) });
+    await screen.findByText('Impossibile completare la richiesta al catalogo. Riprova più tardi.');
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+});

@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, type SubmitEvent } from 'react';
 import { Link, useParams } from 'react-router';
-import { cercaProvider, collegaProvider, elencaGestioneArtisti, leggiGestioneProvider, sincronizzaProvider, ricontrollaTicketmaster, leggiProvider, nomeProvider, type GestioneArtistaProvider, type ProfiloProvider } from '../api/artistiProvider';
+import { cercaProvider, collegaProvider, elencaGestioneArtisti, leggiGestioneProvider, sincronizzaProvider, ricontrollaTicketmaster, confermaTicketmaster, leggiProvider, nomeProvider, type GestioneArtistaProvider, type ProfiloProvider } from '../api/artistiProvider';
 import { idDaPercorso } from '../api/catalogo';
 import { ErroreApi } from '../api/client';
 import { useRisorsa, type StatoRisorsa } from '../catalogo/useRisorsa';
@@ -19,6 +19,9 @@ const ERRORI: Record<string, Chiave> = {
     DEEZER_CONFLITTO: 'provider.error.conflict', DEEZER_GIA_COLLEGATO: 'provider.error.duplicate',
     DEEZER_LIMITE: 'provider.error.limit', DEEZER_TIMEOUT: 'provider.error.timeout', DEEZER_PARAMETRI: 'common.invalidData',
     DEEZER_DATI_INVALIDI: 'provider.error.payload',
+    TICKETMASTER_IDENTITA_INVALIDA: 'provider.tm.invalid', TICKETMASTER_NON_VERIFICATO: 'provider.tm.unavailable',
+    TICKETMASTER_CONTROLLO_NON_VERIFICATO: 'provider.tm.checkUnavailable',
+    TICKETMASTER_CONFLITTO: 'provider.error.conflict', TICKETMASTER_GIA_COLLEGATO: 'provider.tm.duplicate',
 };
 function errore(causa: unknown): string {
     if (causa instanceof ErroreApi) {
@@ -73,6 +76,8 @@ function EditorProvider({ iniziale }: { iniziale: GestioneArtistaProvider }) {
     const [ricerca, impostaRicerca] = useState<StatoRisorsa<ProfiloProvider[]> | null>(null);
     const [scelto, impostaScelto] = useState<ProfiloProvider | null>(null);
     const [conferma, impostaConferma] = useState(false);
+    const [sceltaTm, impostaSceltaTm] = useState<string | null>(null);
+    const [confermaTm, impostaConfermaTm] = useState(false);
     const [occupato, impostaOccupato] = useState(false);
     const [fallimento, impostaFallimento] = useState<unknown>(null);
     const [successo, impostaSuccesso] = useState<Chiave | null>(null);
@@ -95,6 +100,7 @@ function EditorProvider({ iniziale }: { iniziale: GestioneArtistaProvider }) {
                 await collegaProvider(artista.id, provider, scelto!.externalId, link?.versione ?? null);
             impostaLink(nuovo); impostaSuccesso(sync ? 'provider.synced' : 'provider.linked');
             impostaScelto(null); impostaConferma(false);
+            impostaSceltaTm(null); impostaConfermaTm(false);
         } catch (causa) { impostaFallimento(causa); }
         finally { impostaOccupato(false); }
     }
@@ -102,8 +108,21 @@ function EditorProvider({ iniziale }: { iniziale: GestioneArtistaProvider }) {
         if (occupato || !link) return;
         impostaOccupato(true); impostaFallimento(null); impostaSuccesso(null);
         try {
-            impostaLink(await ricontrollaTicketmaster(artista.id, provider, link.versione));
-            impostaSuccesso('provider.tm.checked');
+            const nuovo = await ricontrollaTicketmaster(artista.id, provider, link.versione);
+            impostaLink(nuovo);
+            impostaSceltaTm(null); impostaConfermaTm(false);
+            if (nuovo.ticketmaster.stato === 'non_verificato')
+                impostaFallimento(new ErroreApi(503, { codice: 'TICKETMASTER_CONTROLLO_NON_VERIFICATO' }));
+            else impostaSuccesso('provider.tm.checked');
+        } catch (causa) { impostaFallimento(causa); }
+        finally { impostaOccupato(false); }
+    }
+    async function salvaTm() {
+        if (occupato || !link) return;
+        impostaOccupato(true); impostaFallimento(null); impostaSuccesso(null);
+        try {
+            impostaLink(await confermaTicketmaster(artista.id, provider, sceltaTm, link.ticketmaster.attractionConfermata, link.versione));
+            impostaSceltaTm(null); impostaConfermaTm(false); impostaSuccesso('provider.tm.saved');
         } catch (causa) { impostaFallimento(causa); }
         finally { impostaOccupato(false); }
     }
@@ -113,6 +132,7 @@ function EditorProvider({ iniziale }: { iniziale: GestioneArtistaProvider }) {
             const aggiornato = await leggiGestioneProvider(artista.id);
             impostaLink(aggiornato.collegamento); impostaFallimento(null);
             impostaConferma(false); impostaScelto(null);
+            impostaConfermaTm(false); impostaSceltaTm(null);
         } catch (causa) { impostaFallimento(causa); }
         finally { impostaOccupato(false); }
     }
@@ -121,32 +141,50 @@ function EditorProvider({ iniziale }: { iniziale: GestioneArtistaProvider }) {
         <Vetrina><div className="occhiello">{t('provider.eyebrow')}</div><h1 className="titolo">{artista.nome}</h1><p>{t('provider.intro')}</p><p>{t('provider.active', { provider: nomeProvider(provider) })}</p></Vetrina>
         <section className={stile.pannello} aria-label={t('provider.current')}><h2>{t('provider.current')}</h2>
             {link ? <><Profilo key={link.artwork?.url ?? link.externalId} dati={link} /><p>{t('provider.lastSync', { date: dataControllo(link.syncedAt) })}</p>
-                <Bottone variante="contorno" disabled={occupato || conferma || ricerca?.tipo === 'caricamento'} onClick={() => void salva(true)}>{occupato ? t('provider.saving') : t('provider.sync')}</Bottone>
+                <Bottone variante="contorno" disabled={occupato || conferma || confermaTm || ricerca?.tipo === 'caricamento'} onClick={() => void salva(true)}>{occupato ? t('provider.saving') : t('provider.sync')}</Bottone>
                 <div className={stile.presenza}><strong>{t(link.ticketmaster.stato === 'trovato' ? 'provider.tm.found' : link.ticketmaster.stato === 'non_trovato' ? 'provider.tm.missing' : 'provider.tm.failed')}</strong>
                     <p>{t('provider.tm.note')}</p>
-                    {link.ticketmaster.ambiguo ? <Avviso>{t('provider.tm.ambiguous')}</Avviso> : null}
-                    {link.ticketmaster.attractions.length ? <ul>{link.ticketmaster.attractions.map(a => <li key={a.id}>{a.name} · {a.id}</li>)}</ul> : null}
+                    {link.ticketmaster.attractionConfermata ? <p><strong>{t('provider.tm.current', { id: link.ticketmaster.attractionConfermata })}</strong></p> : null}
+                    {link.ticketmaster.ambiguo && !link.ticketmaster.attractionConfermata ? <Avviso>{t('provider.tm.ambiguous')}</Avviso> : null}
+                    {link.ticketmaster.attractions.length ? <fieldset disabled={occupato || conferma || confermaTm}>
+                        <legend>{t('provider.tm.select')}</legend><p>{t('provider.tm.verify')}</p>
+                        {link.ticketmaster.attractions.map(a => <div key={a.id} className={stile.risultato}>
+                            <label><input type="radio" name="ticketmaster-result" checked={sceltaTm === a.id} onChange={() => impostaSceltaTm(a.id)} />{t('provider.tm.choose', { name: a.name, id: a.id })}</label>
+                            {a.genere ? <p>{a.genere}</p> : null}
+                            {a.url ? <p><a href={a.url} target="_blank" rel="noopener noreferrer">{t('provider.tm.open')}</a></p> : null}
+                            {a.spotify ? <p><a href={a.spotify} target="_blank" rel="noopener noreferrer">{t('provider.tm.spotify')}</a></p> : null}
+                            {a.id === link.ticketmaster.attractionConfermata ? <strong>{t('provider.tm.currentBadge')}</strong> : null}
+                        </div>)}
+                    </fieldset> : null}
+                    {sceltaTm && !confermaTm ? <Bottone disabled={occupato || conferma} onClick={() => impostaConfermaTm(true)}>{t('provider.tm.review')}</Bottone> : null}
+                    {link.ticketmaster.attractionConfermata && !confermaTm ? <Bottone variante="contorno" disabled={occupato || conferma} onClick={() => { impostaSceltaTm(null); impostaConfermaTm(true); }}>{t('provider.tm.remove')}</Bottone> : null}
                     {link.ticketmaster.controllatoAt ? <p>{t('provider.tm.date', { date: dataControllo(link.ticketmaster.controllatoAt) })}</p> : null}
-                    <Bottone variante="contorno" disabled={occupato || conferma || ricerca?.tipo === 'caricamento'} onClick={() => void ricontrolla()}>{t('provider.tm.retry')}</Bottone>
+                    <Bottone variante="contorno" disabled={occupato || conferma || confermaTm || ricerca?.tipo === 'caricamento'} onClick={() => void ricontrolla()}>{t('provider.tm.retry')}</Bottone>
                 </div></> : <p>{t('provider.noLink')}</p>}
         </section>
         {fallimento !== null ? <Avviso tipo="errore">{errore(fallimento)} <Bottone variante="contorno" disabled={occupato} onClick={() => void ricarica()}>{t('provider.reload')}</Bottone></Avviso> : null}
         {successo ? <Avviso tipo="successo">{t(successo)}</Avviso> : null}
+        {confermaTm ? <section className={stile.pannello} aria-label={t('provider.tm.confirmTitle')}>
+            <h2>{t('provider.tm.confirmTitle')}</h2>
+            <p>{t(sceltaTm ? 'provider.tm.confirmWarning' : 'provider.tm.removeWarning', { local: artista.nome, id: sceltaTm ?? '' })}</p>
+            <div className={stile.azioni}><Bottone disabled={occupato} onClick={() => void salvaTm()}>{occupato ? t('provider.saving') : t('provider.tm.confirm')}</Bottone>
+                <Bottone variante="contorno" disabled={occupato} onClick={() => impostaConfermaTm(false)}>{t('provider.cancel')}</Bottone></div>
+        </section> : null}
         <section className={stile.pannello} aria-label={t('provider.searchTitle')}><h2>{t('provider.searchTitle')}</h2>
             <form onSubmit={e => void cerca(e)} className={stile.ricerca}>
                 <label htmlFor="provider-query">{t('provider.query')}</label>
-                <input id="provider-query" value={query} onChange={e => impostaQuery(e.target.value)} required maxLength={200} disabled={occupato || conferma} placeholder={t('provider.queryPlaceholder')} />
-                <Bottone type="submit" disabled={occupato || conferma || !query.trim() || ricerca?.tipo === 'caricamento'}>{t('provider.search')}</Bottone>
+                <input id="provider-query" value={query} onChange={e => impostaQuery(e.target.value)} required maxLength={200} disabled={occupato || conferma || confermaTm} placeholder={t('provider.queryPlaceholder')} />
+                <Bottone type="submit" disabled={occupato || conferma || confermaTm || !query.trim() || ricerca?.tipo === 'caricamento'}>{t('provider.search')}</Bottone>
             </form>
             {ricerca?.tipo === 'caricamento' ? <StatoCaricamento testo={t('provider.searching')} /> : null}
             {ricerca?.tipo === 'errore' ? <Avviso tipo="errore">{errore(ricerca.causa)}</Avviso> : null}
             {ricerca?.tipo === 'pronto' && ricerca.dati.length === 0 ? <Avviso>{t('provider.empty')}</Avviso> : null}
-            {ricerca?.tipo === 'pronto' && ricerca.dati.length > 0 ? <fieldset className={stile.risultati} disabled={occupato || conferma}>
+            {ricerca?.tipo === 'pronto' && ricerca.dati.length > 0 ? <fieldset className={stile.risultati} disabled={occupato || conferma || confermaTm}>
                 <legend>{t('provider.select')}</legend>{ricerca.dati.map(r => <article key={r.externalId} className={stile.risultato}>
                     <Profilo dati={r} /><label><input type="radio" name="provider-result" checked={scelto?.externalId === r.externalId} onChange={() => impostaScelto(r)} />{t('provider.choose', { name: r.name })}</label>
                     {link?.externalId === r.externalId && link.storefront === r.storefront ? <strong>{t('provider.currentBadge')}</strong> : null}
                 </article>)}</fieldset> : null}
-            {scelto ? <Bottone disabled={occupato || conferma} onClick={() => impostaConferma(true)}>{t('provider.review')}</Bottone> : null}
+            {scelto ? <Bottone disabled={occupato || conferma || confermaTm} onClick={() => impostaConferma(true)}>{t('provider.review')}</Bottone> : null}
         </section>
         {conferma && scelto ? <section className={stile.pannello} aria-label={t('provider.confirmTitle')}>
             <h2>{t('provider.confirmTitle')}</h2><p>{t(link ? 'provider.replaceWarning' : 'provider.confirmWarning', { local: artista.nome, artist: scelto.name })}</p>
