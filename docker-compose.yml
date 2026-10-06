@@ -20,9 +20,16 @@ services:
         environment:
             OLLAMA_HOST: "http://ollama:11434"
             OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+            OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
         entrypoint: ["/bin/sh", "-ec"]
         command:
-            - 'ollama show "$$OLLAMA_MODEL" >/dev/null 2>&1 || ollama pull "$$OLLAMA_MODEL"'
+            - |
+                case "$$OLLAMA_URL" in
+                    http://ollama:11434|http://ollama:11434/)
+                        ollama show "$$OLLAMA_MODEL" >/dev/null 2>&1 || ollama pull "$$OLLAMA_MODEL"
+                        ;;
+                    *) echo "Ollama esterno: predisporre il modello sul server configurato." ;;
+                esac
         depends_on:
             ollama:
                 condition: service_healthy

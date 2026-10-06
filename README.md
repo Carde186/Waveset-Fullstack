@@ -64,6 +64,8 @@ I comandi seguenti vanno eseguiti **dalla root del progetto**. Docker installa l
 
    Usa `OLLAMA_URL=http://ollama:11434` e `OLLAMA_MODEL=qwen3:4b`. Se aggiorni un vecchio `.env`, sostituisci l'URL precedente e imposta `OLLAMA_TIMEOUT_MS=120000`. Per prove su hardware limitato puoi scegliere `qwen3:0.6b`: consuma meno memoria, ma può produrre valutazioni meno accurate.
 
+   Se hai già Ollama attivo sull'host con il modello installato, Docker Desktop può riusarlo impostando `OLLAMA_URL=http://host.docker.internal:11434`. In questo caso Compose non scarica una seconda copia del modello; l'avvio interamente in Docker resta la configurazione predefinita.
+
 3. Avvia lo stack:
 
    ```bash

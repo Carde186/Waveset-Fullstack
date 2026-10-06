@@ -19,6 +19,8 @@ Per installazione, modello e avvio consulta il [README](../README.md#avvio-local
 
 Compose avvia il server `ollama`, conserva il modello nel volume `ollama_data` e attende il download prima di avviare backend e `ollama-eventi`. Non espone la porta Ollama sull'host. Il worker è separato dalla sync Ticketmaster: un lock MySQL consente un solo worker per DB e l'applicazione delle decisioni è seriale. Le variabili Ollama sono solo server. Per un backend avviato direttamente sull'host, configura il suo server Ollama e usa `http://localhost:11434`.
 
+Con Docker Desktop puoi riusare un server Ollama già attivo sull'host usando `http://host.docker.internal:11434`: `ollama-model` salta il download locale e il modello va già predisposto su quel server.
+
 Dalla root, con stack già avviato:
 
 ```bash
